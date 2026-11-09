@@ -1,0 +1,1121 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Perc alapú műszakos bérkalkulátor a magyar Munka Törvénykönyve és adószabályok szerint.">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Műszakos Bérkalkulátor</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a5bd8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* Layout: sticky tab bar over a single column; calendar tab splits into shift-settings rail + month grid on wide screens. */
+:root{
+  --bg:#f2f6ff; --surface:#ffffff; --surface-2:#eef3fe; --line:#cdd8f0; --fg:#101a33; --muted:#4f5d7a;
+  --accent:#0a5bd8; --accent-fg:#ffffff; --hi:#ffcf24; --good:#13a356; --bad:#e5203a;
+  --de:#ffd21f; --de-fg:#3d2c00; --du:#ff8a2b; --du-fg:#2e1300; --ej:#2f7bff; --ej-fg:#ffffff;
+  --sz:#16c6a3; --sz-fg:#00302a; --tp:#d65bf0; --tp-fg:#ffffff; --weekend:#e2eaff; --hol:#ffd0d6;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --body:"Barlow",Arial,Helvetica,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b1226; --surface:#131d36; --surface-2:#1a2747; --line:#2b3c66; --fg:#eef3ff; --muted:#a6b4d6;
+  --accent:#4d8dff; --accent-fg:#06112a; --hi:#ffd84d; --good:#3fe08a; --bad:#ff5c72;
+  --de:#ffd21f; --de-fg:#2b1f00; --du:#ff9447; --du-fg:#2a1000; --ej:#4d8dff; --ej-fg:#05122b;
+  --sz:#22d8b4; --sz-fg:#00281f; --tp:#df74f5; --tp-fg:#2a0533; --weekend:#18244a; --hol:#5c1f2c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b1226; --surface:#131d36; --surface-2:#1a2747; --line:#2b3c66; --fg:#eef3ff; --muted:#a6b4d6;
+  --accent:#4d8dff; --accent-fg:#06112a; --hi:#ffd84d; --good:#3fe08a; --bad:#ff5c72;
+  --de:#ffd21f; --de-fg:#2b1f00; --du:#ff9447; --du-fg:#2a1000; --ej:#4d8dff; --ej-fg:#05122b;
+  --sz:#22d8b4; --sz-fg:#00281f; --tp:#df74f5; --tp-fg:#2a0533; --weekend:#18244a; --hol:#5c1f2c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.4;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--accent)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--accent);color:var(--accent-fg)}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-block:10px 4px}
+.brand h1{font-family:var(--display);font-size:22px;margin:0;letter-spacing:.02em}
+.brand h1{display:flex;align-items:center;gap:10px}
+.logo{width:30px;height:30px;border-radius:8px;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.brand small{opacity:.8;font-size:12px}
+.hdr-r{display:flex;align-items:center;gap:10px}
+.helpbtn{width:32px;height:32px;border-radius:50%;border:2px solid var(--accent-fg);background:transparent;color:var(--accent-fg);font:700 17px/1 var(--body);cursor:pointer;flex:0 0 auto}
+.helpbtn:hover{background:var(--hi);border-color:var(--hi);color:var(--de-fg)}
+.help h3{font-family:var(--display);font-size:16px;text-transform:uppercase;letter-spacing:.03em;color:var(--accent);margin:16px 0 6px}
+.help ol,.help ul{margin:0;padding-left:20px;display:grid;gap:6px;font-size:14px;line-height:1.45}
+.help p{font-size:14px;line-height:1.45;margin:6px 0}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;padding-block:4px 0}
+nav.tabs button{flex:1 0 auto;font-family:var(--display);font-size:16px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  background:transparent;color:var(--accent-fg);opacity:.75;border:0;border-bottom:3px solid transparent;padding:8px 12px;cursor:pointer}
+nav.tabs button[aria-selected="true"]{opacity:1;border-bottom-color:var(--hi)}
+nav.tabs button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{padding-block:16px 40px;max-width:1100px;margin:0 auto}
+section.panel{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+.card h2{font-family:var(--display);font-size:18px;letter-spacing:.03em;text-transform:uppercase;margin:0 0 10px;color:var(--accent);display:flex;align-items:center;gap:8px}
+.card h2::before{content:"";width:10px;height:10px;border-radius:2px;background:var(--hi)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 16px}
+label.f{display:grid;gap:4px;font-size:13px;color:var(--muted);font-weight:500}
+label.f input,label.f select{font:inherit;font-size:15px;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:8px 10px;width:100%;min-width:0}
+label.chk{display:flex;gap:10px;align-items:center;font-size:14px;cursor:pointer}
+label.chk input{width:20px;height:20px;accent-color:var(--accent)}
+.bonusbox{display:grid;gap:6px;align-content:start}
+.levgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px 12px}
+.levgrid .potbox label.chk{align-items:flex-start;line-height:1.25}
+.levgrid .potbox label.chk input{flex:0 0 auto;margin-top:1px}
+.levgrid .pctin select{font:inherit;font-size:14px;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:7px 6px}
+.potpair{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start}
+.potbox{display:grid;gap:6px;min-width:0}
+.potbox label.chk{font-size:14px;color:var(--fg)}
+.pctin{display:flex;align-items:center;gap:6px}
+.pctin input{font:inherit;font-size:15px;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:8px 10px;width:100%;min-width:0}
+.pctin input:disabled{opacity:.45}
+.cafebox{display:grid;gap:6px;align-content:start}
+.cafebox input[type=number]{font:inherit;font-size:15px;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:8px 10px;width:100%;min-width:0}
+.cafebox .row{gap:14px}
+.bonusbox select{font:inherit;font-size:15px;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+.veco{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;margin:-2px 0 10px 50px;color:var(--muted)}
+.veco input[type=number]{width:64px;font:inherit;font-size:14px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);color:var(--fg)}
+.hint{font-size:12px;color:var(--muted)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line)}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:8px;padding:9px 14px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-fg);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.num{font-variant-numeric:tabular-nums}
+/* Calendar */
+.calwrap{display:grid;gap:16px}
+@media (min-width:900px){.calwrap{grid-template-columns:300px 1fr;align-items:start}}
+.shiftrow{display:grid;grid-template-columns:44px 1fr 1fr;gap:6px;align-items:center;margin-bottom:6px}
+.shiftrow input{font:inherit;font-size:14px;padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);color:var(--fg);min-width:0;width:100%}
+.code{display:inline-grid;place-items:center;font-family:var(--display);font-weight:700;border-radius:6px;min-width:36px;padding:3px 6px;font-size:15px}
+.c-De{background:var(--de);color:var(--de-fg)} .c-Du{background:var(--du);color:var(--du-fg)} .c-Éj{background:var(--ej);color:var(--ej-fg)}
+.c-Sz{background:var(--sz);color:var(--sz-fg)} .c-TP{background:var(--tp);color:var(--tp-fg)}
+.monbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.monbar select{font:inherit;font-weight:600;padding:7px 8px;border-radius:7px;border:1px solid var(--line);background:var(--surface-2);color:var(--fg)}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal .dh{font-family:var(--display);font-size:13px;text-align:center;color:var(--muted);font-weight:600;text-transform:uppercase}
+.day{position:relative;min-height:64px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:4px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:2px;font:inherit;color:var(--fg);user-select:none;-webkit-tap-highlight-color:transparent}
+.day.we{background:var(--weekend)} .day.hol{background:var(--hol)}
+.day .dn{font-size:13px;font-weight:700;align-self:flex-start}
+.day .tm{font-size:10px;color:var(--muted);line-height:1.1;text-align:center}
+.day .ot{position:absolute;top:3px;right:4px;font-size:10px;font-weight:700;color:var(--bad)}
+.day .ot.auto{opacity:.55}
+.day.empty{visibility:hidden}
+.day.t{box-shadow:inset 0 0 0 2px var(--bad)}
+.legend{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted);align-items:center}
+.monsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:12px}
+.monsum div{background:var(--surface-2);border-radius:8px;padding:8px;border-top:3px solid var(--accent)}
+.monsum b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.monsum span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+/* Payslip paper: always light, like the printed sheet */
+.paperwrap{overflow-x:auto}
+.paper{--p-ink:#111; --p-line:#9aa8c4; --p-head:#cfe0ff; background:#fff;color:var(--p-ink);font-family:Arial,Helvetica,sans-serif;font-size:12px;padding:18px;border-radius:4px;min-width:640px;max-width:900px;margin:0 auto}
+.paper .ph{display:flex;justify-content:space-between;border-bottom:2px solid var(--p-ink);padding-bottom:6px;margin-bottom:10px;gap:12px}
+.paper .ph b{font-size:15px}
+.paper .cols{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}
+.paper table{color:inherit;border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.paper th{background:var(--p-head);font-weight:700;text-align:left;padding:3px 5px;border:1px solid var(--p-line);font-size:11.5px}
+.paper td{border:1px solid var(--p-line);padding:3px 5px}
+.paper td.r{text-align:right;white-space:nowrap}
+.paper tr.tot td{font-weight:700;background:#eef3e6}
+.paper tr.net td{font-weight:700;background:#9fe6bf;font-size:13px}
+.paper .sec{margin-top:10px}
+.paper .small{font-size:10px;color:#555;margin-top:8px}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:90vw}
+.status{font-size:11px;opacity:.85}
+@media (prefers-reduced-motion:no-preference){.day{transition:transform .08s}.day:active{transform:scale(.96)}}
+</style>
+</head>
+<body>
+
+<style>
+:root{
+  --okt:#9ad13b; --okt-fg:#1f2e00; --fn:#9aa6bd; --fn-fg:#0f1830; --ig:#ff5470; --ig-fg:#ffffff;
+  --all:#c79a5b; --all-fg:#2b1a04; --kik:#7a5cff; --kik-fg:#ffffff; --swap:#fff2b8;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--swap:#3d3714}}
+:root[data-theme="dark"]{--swap:#3d3714}
+.c-Okt{background:var(--okt);color:var(--okt-fg)} .c-FN{background:var(--fn);color:var(--fn-fg)} .c-Ig{background:var(--ig);color:var(--ig-fg)}
+.c-Áll{background:var(--all);color:var(--all-fg)} .c-Kik{background:var(--kik);color:var(--kik-fg)}
+.day.swapw{box-shadow:inset 0 -3px 0 var(--accent)} .day.swapr{background:var(--swap)}
+.notice{background:var(--surface-2);border:1px solid var(--line);border-left:4px solid var(--hi);border-radius:8px;padding:10px 12px;font-size:13px}
+.lenpick{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.lenpick label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer;font-weight:600;font-size:14px;background:var(--surface-2)}
+.lenpick input{accent-color:var(--accent);width:18px;height:18px}
+.tapbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.tapbar select{font:inherit;font-size:14px;padding:7px 8px;border-radius:7px;border:1px solid var(--line);background:var(--surface-2);color:var(--fg)}
+.cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:8px}
+.cmpres{margin-top:12px;display:grid;gap:6px;font-size:14px}
+.cmpres .ok{color:var(--good);font-weight:700} .cmpres .bad{color:var(--bad);font-weight:700}
+textarea.code{font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;width:100%;min-height:72px;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);color:var(--fg);padding:8px;resize:vertical}
+.chart{width:100%;height:auto;display:block}
+.chart text{fill:var(--muted);font-size:11px;font-family:var(--body)}
+.chart .val{fill:var(--fg);font-size:10px;font-weight:600}
+.benefit h3{font-family:var(--display);font-size:16px;text-transform:uppercase;letter-spacing:.03em;margin:4px 0 6px;color:var(--fg)}
+.benefit ul{margin:0;padding-left:18px;display:grid;gap:6px;max-width:70ch}
+.benefit li b{color:var(--fg)}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;vertical-align:1px}
+.tag.free{background:var(--sz);color:var(--sz-fg)} .tag.k28{background:var(--de);color:var(--de-fg)} .tag.k33{background:var(--du);color:var(--du-fg)} .tag.ber{background:var(--fn);color:var(--fn-fg)} .tag.must{background:var(--accent);color:var(--accent-fg)}
+.modal{position:fixed;inset:0;z-index:30;background:rgba(5,10,25,.55);display:grid;place-items:center;padding:16px}
+.modal .box{background:var(--surface);color:var(--fg);border-radius:12px;max-width:560px;width:100%;max-height:calc(100vh - 32px);overflow:auto;padding:18px;border:1px solid var(--line)}
+[hidden]{display:none!important}
+.day.virt .code{opacity:.5} .day.virt .tm{opacity:.6} .day.pre{opacity:.35}
+.code .lenb{font-size:.62em;font-weight:700;margin-left:1px;line-height:1;vertical-align:.55em}
+.weeks{margin-top:12px;display:grid;gap:4px}
+.weeks h3{font-family:var(--display);font-size:15px;text-transform:uppercase;letter-spacing:.03em;margin:4px 0;color:var(--accent)}
+.wk{display:grid;grid-template-columns:1.2fr 1fr 1.6fr;gap:8px;align-items:center;font-size:13px;padding:6px 8px;border-radius:7px;background:var(--surface-2);font-variant-numeric:tabular-nums}
+.wk b{font-weight:600;color:var(--muted)} .wk.over b{color:var(--bad)}
+@media (max-width:480px){.wk{grid-template-columns:1fr 1fr}.wk b{grid-column:1/-1}}
+.modal h2{font-family:var(--display);font-size:22px;margin:0 0 4px;color:var(--accent)}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><h1><img class="logo" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20512%20512%22%3E%20%20%3Crect%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22112%22%20fill%3D%22%230a5bd8%22/%3E%20%20%3Crect%20x%3D%2288%22%20y%3D%22120%22%20width%3D%22300%22%20height%3D%22290%22%20rx%3D%2236%22%20fill%3D%22%23ffffff%22/%3E%20%20%3Crect%20x%3D%2288%22%20y%3D%22120%22%20width%3D%22300%22%20height%3D%2278%22%20rx%3D%2236%22%20fill%3D%22%23ffcf24%22/%3E%20%20%3Crect%20x%3D%2288%22%20y%3D%22160%22%20width%3D%22300%22%20height%3D%2238%22%20fill%3D%22%23ffcf24%22/%3E%20%20%3Crect%20x%3D%22148%22%20y%3D%2292%22%20width%3D%2226%22%20height%3D%2262%22%20rx%3D%2213%22%20fill%3D%22%23101a33%22/%3E%20%20%3Crect%20x%3D%22302%22%20y%3D%2292%22%20width%3D%2226%22%20height%3D%2262%22%20rx%3D%2213%22%20fill%3D%22%23101a33%22/%3E%20%20%3Crect%20x%3D%22122%22%20y%3D%22226%22%20width%3D%2258%22%20height%3D%2246%22%20rx%3D%2210%22%20fill%3D%22%23ffd21f%22/%3E%20%20%3Crect%20x%3D%22198%22%20y%3D%22226%22%20width%3D%2258%22%20height%3D%2246%22%20rx%3D%2210%22%20fill%3D%22%23ff8a2b%22/%3E%20%20%3Crect%20x%3D%22274%22%20y%3D%22226%22%20width%3D%2258%22%20height%3D%2246%22%20rx%3D%2210%22%20fill%3D%22%232f7bff%22/%3E%20%20%3Crect%20x%3D%22122%22%20y%3D%22290%22%20width%3D%2258%22%20height%3D%2246%22%20rx%3D%2210%22%20fill%3D%22%232f7bff%22/%3E%20%20%3Crect%20x%3D%22198%22%20y%3D%22290%22%20width%3D%2258%22%20height%3D%2246%22%20rx%3D%2210%22%20fill%3D%22%23ffd21f%22/%3E%20%20%3Ccircle%20cx%3D%22366%22%20cy%3D%22356%22%20r%3D%2298%22%20fill%3D%22%2313a356%22%20stroke%3D%22%230a5bd8%22%20stroke-width%3D%2218%22/%3E%20%20%3Ctext%20x%3D%22366%22%20y%3D%22392%22%20text-anchor%3D%22middle%22%20font-family%3D%22Arial%2CHelvetica%2Csans-serif%22%20font-weight%3D%22700%22%20font-size%3D%2298%22%20fill%3D%22%23ffffff%22%3EFt%3C/text%3E%3C/svg%3E" alt="" width="30" height="30">Műszakos Bérkalkulátor</h1><div class="hdr-r"><small class="status" id="status">Betöltés…</small><button class="helpbtn" id="helpBtn" aria-label="Súgó – kitöltési útmutató">?</button></div></div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="adatok" aria-selected="true">Adatok</button>
+      <button role="tab" data-tab="naptar" aria-selected="false">Naptár</button>
+      <button role="tab" data-tab="kimutatas" aria-selected="false">Kimutatás</button>
+      <button role="tab" data-tab="ev" aria-selected="false">Éves</button>
+      <button role="tab" data-tab="tamogatas" aria-selected="false">Támogatások</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+<!-- ADATOK -->
+<section class="panel" id="tab-adatok">
+  <div class="notice" id="notice2027" hidden>A 2027-es számítás a 2026. október 27-én benyújtott adótörvény-javaslatok (T/927–T/931) szerint készül: adójóváírás, az anyák kedvezményének havi 1 millió Ft-os határa, dupla családi pótlék. A 2027-es minimálbér még nincs megállapítva, helyette a 2026-os szerepel. Az elfogadás után a számok változhatnak.</div>
+  <div class="card"><h2>Személyes adatok</h2>
+    <div class="grid2">
+      <label class="f">Születési év<input id="szulev" type="number" min="1940" max="2015"></label>
+      <label class="f">Munkaviszony kezdete<input id="mvKezd" type="date"></label>
+      <label class="f">Szerződés típusa
+        <select id="szerz">
+          <option value="t40">Teljes munkaidő – heti 40 óra, napi 8 óra</option>
+          <option value="t12">Teljes munkaidő – 12 órás műszakok (átlag heti 40 óra)</option>
+          <option value="k12">Készenléti jellegű munkakör – napi 12 óra</option>
+          <option value="r36">Részmunkaidő – heti 36 óra</option>
+          <option value="r30">Részmunkaidő – heti 30 óra (napi 6)</option>
+          <option value="r24">Részmunkaidő – heti 24 óra</option>
+          <option value="r20">Részmunkaidő – heti 20 óra (napi 4)</option>
+          <option value="r16">Részmunkaidő – heti 16 óra</option>
+          <option value="kot">Kötetlen munkarend – heti 40 óra</option>
+          <option value="egy">Egyéni heti óraszám</option>
+        </select></label>
+      <label class="f" id="egyeniWrap">Heti munkaidő (óra)<input id="hetiOra" type="number" min="1" max="60" step="1"></label>
+      <div class="f potbox"><label class="chk"><input id="keretOn" type="checkbox"> Munkaidőkeret</label>
+        <div class="pctin"><input id="keretHossz" type="number" min="1" max="36" step="1" aria-label="Munkaidőkeret hossza"><select id="keretEgys" aria-label="Munkaidőkeret egysége"><option value="ev">év</option><option value="ho">hónap</option></select></div></div>
+      <label class="f">Jogviszony
+        <select id="jogv">
+          <option value="mv">Munkaviszony</option>
+          <option value="koz">Közszféra (köztisztviselő, kormánytisztviselő, közalkalmazott)</option>
+          <option value="nyugd">Nyugdíjas munkavállaló</option>
+          <option value="diak">Iskolaszövetkezeti tag (diák)</option>
+          <option value="megb">Megbízási jogviszony</option>
+          <option value="efo">Egyszerűsített foglalkoztatás (alkalmi munka)</option>
+        </select></label>
+      <label class="f">Munkaviszony típusa (munkáltatói kedvezmény)
+        <select id="szkedv">
+          <option value="none">Kedvezményre nem jogosult</option>
+          <option value="mpl12">Munkaerőpiacra lépő munkavállaló – foglalkoztatás 1–2. éve</option>
+          <option value="mpl3">Munkaerőpiacra lépő munkavállaló – foglalkoztatás 3. éve</option>
+          <option value="szakn">Szakképzettséget nem igénylő vagy mezőgazdasági munkakörben dolgozik</option>
+          <option value="no13">Munkaerőpiacra lépő, min. 3 gyermek után családi pótlékra jogosult nő – 1–3. év</option>
+          <option value="no45">Munkaerőpiacra lépő, min. 3 gyermek után családi pótlékra jogosult nő – 4–5. év</option>
+          <option value="kutato">Kutatóként van foglalkoztatva</option>
+          <option value="doktori">Doktori képzésben vesz részt</option>
+          <option value="mmk">Megváltozott munkaképességű</option>
+          <option value="kozf">Közfoglalkoztatott</option>
+          <option value="kf">Kutatás-fejlesztési tevékenységet folytató munkavállaló</option>
+          <option value="koztv">Nem költségvetési szervnél foglalkoztatott, korábban védett korban elbocsátott köztisztviselő</option>
+        </select></label>
+    </div>
+    <label class="chk" style="margin-top:12px"><input id="bizt2" type="checkbox"> Legalább 2 év folyamatos biztosítási idő (táppénz 60%, különben 50%)</label>
+    <p class="hint" id="szerzHint"></p>
+    <p class="hint" id="jogvHint"></p>
+    <p class="hint" id="szkedvHint"></p>
+  </div>
+
+  <div class="card"><h2>Bérezés</h2>
+    <div class="grid2">
+      <label class="f">Bérkategória
+        <select id="bertip"><option value="havi">Havibér</option><option value="ora">Órabér</option><option value="perc">Percbér</option></select></label>
+      <label class="f"><span id="berLabel">Havi bruttó alapbér (Ft)</span><input id="ber" type="number" min="0" step="1"></label>
+      <div class="f potpair">
+        <div class="potbox"><label class="chk"><input id="pDelOn" type="checkbox"> Délutáni pótlék</label>
+          <div class="pctin"><input id="pDel" type="number" min="0" step="1" aria-label="Délutáni pótlék mértéke"><span>%</span></div></div>
+        <div class="potbox"><label class="chk"><input id="pEjOn" type="checkbox"> Éjszakai pótlék</label>
+          <div class="pctin"><input id="pEj" type="number" min="0" step="1" aria-label="Éjszakai pótlék mértéke"><span>%</span></div></div>
+      </div>
+      <div class="f potbox"><label class="chk"><input id="vasOn" type="checkbox"> Vasárnapi pótlék (50%)</label>
+        <span class="hint">Mt. 140. §: rendes munkaidőben végzett vasárnapi munkáért jár, ha többműszakos vagy folyamatos munkarendben, készenléti jellegű munkakörben vagy kereskedelemben dolgozol.</span></div>
+      <div class="f bonusbox"><label class="chk"><input id="bonuszOn" type="checkbox"> Jelenléti bónusz</label>
+        <select id="bonuszPct" aria-label="Jelenléti bónusz mértéke"><option value="2">2%</option><option value="5">5%</option><option value="7.5">7,5%</option></select>
+        <span class="hint">Az alapbér %-a. Ha a hónapban legalább 2 TP nap van, nem jár.</span></div>
+      <div class="f cafebox"><span>Cafeteria készpénz / étkezési (bruttó Ft/hó)</span>
+        <div class="row" role="radiogroup" aria-label="Cafeteria kifizetési módja">
+          <label class="chk"><input type="radio" name="cafeMod" id="cafeSzamla" value="szamla"> Számlás kiutalás</label>
+          <label class="chk"><input type="radio" name="cafeMod" id="cafeSzep" value="szep"> SZÉP kártya jóváírás</label>
+        </div>
+        <input id="cafe" type="number" min="0" step="1" aria-label="Cafeteria összege">
+        <span class="hint" id="cafeHint"></span></div>
+      <label class="f">Üzemanyag-támogatás (Ft/km)<input id="kmft" type="number" min="0" step="0.5"></label>
+      <label class="f">Munkába járás oda-vissza (km/nap)<input id="kmnap" type="number" min="0" step="1"></label>
+    </div>
+    <p class="hint">Törvényi szabályok (Mt.): többműszakos, rendszeresen változó kezdésű munkarendben 18 és 6 óra között legalább 30% műszakpótlék jár (141. §); ha nincs műszakpótlék, 22 és 6 óra között 15% éjszakai pótlék, ha az éjszakai munka meghaladja az 1 órát (142. §) – ilyenkor kapcsold ki a délutáni pótlékot és írd 15%-ra az éjszakait. A kollektív szerződés ennél többet adhat. Munkaszüneti napon 100% (140. §), túlóra 50%, heti pihenőnapon végzett rendkívüli munka 100% (143. §). A pótlékok és a túlóra alapja havibérnél a havibér/174 óra (136. §), részmunkaidőben arányosan. Szabadságra távolléti díj jár (146., 148., 151. §): alapbér + az utolsó 6 hónap pótlékátlaga. Munkába járás saját autóval: a 39/2010. Korm. rendelet 4. §-a szerinti esetekben legalább 18 Ft/km kötelező, legfeljebb 30 Ft/km adómentes; a fölötti rész bérként adózik.</p>
+  </div>
+
+  <div class="card"><h2>Egyéb levonások</h2>
+    <div class="levgrid" id="levList"></div>
+    <p class="hint">Pipáld be, ami nálad levonásra kerül, és írd be a mértékét. A % mellett a Ft is választható. A végrehajtási és a tartásdíj-letiltás a nettó bérből számolódik, a többi százalékos tétel a bruttóból. A letiltások együtt legfeljebb a nettó 50%-át vihetik el (végrehajtásnál önmagában 33%-át). A szakszervezeti tagdíj az SZJA alapját is csökkenti.</p>
+  </div>
+
+  <div class="card"><h2>Adókedvezmények</h2>
+    <div class="grid2">
+      <label class="f">Személyi adómentesség
+        <select id="kedv">
+          <option value="none">Nincs</option>
+          <option value="fiatal">25 év alatti fiatalok kedvezménye</option>
+          <option value="anya30">30 év alatti anyák kedvezménye</option>
+          <option value="anya2">Két gyermeket nevelő anyák kedvezménye (40 év alatt)</option>
+          <option value="anya3">Három gyermeket nevelő anyák kedvezménye</option>
+          <option value="anya4">Négy vagy több gyermeket nevelő anyák kedvezménye</option>
+        </select></label>
+      <label class="f">Kedvezményezett eltartott gyermekek száma (családi kedvezmény)<input id="gyerek" type="number" min="0" max="12" step="1"></label>
+      <label class="f">A családi kedvezményből én érvényesítem (%)<input id="ckArany" type="number" min="0" max="100" step="1"></label>
+      <label class="f">Családi pótlék
+        <select id="cspotTip"><option value="csalad">Családban nevelt</option><option value="egyedul">Egyedülálló szülő</option></select></label>
+    </div>
+    <div class="row" style="margin-top:12px;gap:18px">
+      <label class="chk"><input id="hazas" type="checkbox"> Friss házasok (első házasok) kedvezménye – havi 5 000 Ft</label>
+      <label class="chk"><input id="szemelyi" type="checkbox"> Személyi kedvezmény (súlyosan fogyatékos személy)</label>
+    </div>
+    <p class="hint" id="kedvHint"></p>
+  </div>
+
+  <div class="card"><h2>Munkarend és szabadság</h2>
+    <div class="grid2">
+      <label class="f">Műszakrend
+        <select id="msz"></select></label>
+      <label class="f">Referenciahét hétfője<input id="refDate" type="date"></label>
+      <label class="f">Referenciahét hétfő kezdeti műszakja
+        <select id="refShift"></select></label>
+      <label class="f" id="rotWrap">Forgás iránya (3 műszak)
+        <select id="rotOrder"><option value="De,Éj,Du">De → Éj → Du</option><option value="De,Du,Éj">De → Du → Éj</option></select></label>
+      <label class="f">16 év alatti gyermekek száma (pótszabadság)<input id="gy16" type="number" min="0" max="12" step="1"></label>
+      <label class="f">ebből fogyatékos gyermek<input id="gyFogy" type="number" min="0" max="12" step="1"></label>
+      <label class="f">Veszélyes munka utáni pótszabadság
+        <select id="veszely">
+          <option value="0">Nincs</option>
+          <option value="fold">Föld alatti munkavégzés (+5 nap)</option>
+          <option value="sugar">Ionizáló sugárzás, napi legalább 3 óra (+5 nap)</option>
+        </select></label>
+    </div>
+    <label class="chk" style="margin-top:12px" id="vasEjWrap"><input id="vasEj" type="checkbox"> Az éjszakás hét vasárnap este kezdődik és szombat reggel ér véget</label>
+    <label class="chk" style="margin-top:8px"><input id="dec24" type="checkbox"> December 24. munkaszüneti nap (ha a törvényjavaslatot elfogadják)</label>
+    <p class="hint">2026-ban áthelyezett munkanapok: január 10., augusztus 8. és december 12. (szombat) munkanap; január 2., augusztus 21. és december 24. pihenőnap. Ha december 24. munkaszüneti nap lesz, a december 12-i szombatot nem kell ledolgozni. 2027-re még nincs áthelyezés.</p>
+    <div class="monsum" id="szabSum"></div>
+  </div>
+
+  <div class="card"><h2>Mentés és megosztás</h2>
+    <div class="row">
+      <button class="btn" id="expBtn">Adatok mentése fájlba</button>
+      <label class="btn ghost" for="impFile" style="display:inline-block">Visszatöltés fájlból</label>
+      <input id="impFile" type="file" accept=".json,application/json" hidden>
+      <button class="btn ghost" id="wizBtn">Gyors beállítás</button>
+    </div>
+    <p class="hint">A mentett fájlban minden beállításod és a naptárad benne van. Telefoncsere előtt mentsd el, az új telefonon töltsd vissza.</p>
+    <h3 style="font-size:14px;margin:14px 0 6px">Beállítások megosztása munkatársakkal</h3>
+    <p class="hint" style="margin-top:0">A kód a műszakidőket, a szünetet, a műszakrendet, a pótlékokat, a bónuszt és a munkaidőkeretet tartalmazza. A béredet, a gyerekeidet és a naptáradat nem.</p>
+    <div class="row"><button class="btn ghost" id="shareBtn">Kód készítése és másolása</button></div>
+    <textarea class="code" id="shareOut" readonly aria-label="Megosztási kód" hidden></textarea>
+    <label class="f" style="margin-top:10px">Kapott kód beillesztése<textarea class="code" id="shareIn" aria-label="Kapott megosztási kód"></textarea></label>
+    <div class="row" style="margin-top:6px"><button class="btn ghost" id="shareApply">Kód betöltése</button></div>
+  </div>
+</section>
+
+<!-- NAPTÁR -->
+<section class="panel" id="tab-naptar" hidden>
+  <div class="calwrap">
+    <div class="card"><h2>Műszakidők</h2>
+      <div class="lenpick" role="radiogroup" aria-label="Műszak hossza">
+        <label><input type="radio" name="mszHossz" value="8" id="len8"> 8 órás</label>
+        <label><input type="radio" name="mszHossz" value="10" id="len10"> 10 órás</label>
+        <label><input type="radio" name="mszHossz" value="12" id="len12"> 12 órás</label>
+      </div>
+      <div class="shiftrow hint"><span></span><span>Kezdés</span><span>Vége</span></div>
+      <div id="shiftInputs"></div>
+      <div class="shiftrow" style="margin-top:10px"><span class="hint">Szünet</span>
+        <input id="brk" type="number" min="0" step="5" aria-label="Szünet perc"><span class="hint">perc / műszak</span></div>
+      <label class="chk"><input id="brkDed" type="checkbox"> Szünet levonása a munkaidőből</label>
+      <p class="hint" id="lenHint"></p>
+    </div>
+    <div class="card">
+      <div class="monbar">
+        <button class="btn ghost" id="prevM" aria-label="Előző hónap">‹</button>
+        <select id="calY"><option>2026</option><option>2027</option></select>
+        <select id="calM"></select>
+        <button class="btn ghost" id="nextM" aria-label="Következő hónap">›</button>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn" id="fillM">Hónap kitöltése a műszakrend szerint</button>
+        <button class="btn ghost" id="clearM">Hónap törlése</button>
+      </div>
+      <div class="tapbar"><span class="hint">Koppintás:</span>
+        <select id="tapMode" aria-label="Mit tegyen a koppintás">
+          <option value="cycle">Műszak / Sz / TP váltogatás</option>
+          <option value="Okt">Oktatás (Okt)</option>
+          <option value="Kik">Kiküldetés (Kik)</option>
+          <option value="Áll">Állásidő (Áll)</option>
+          <option value="FN">Fizetés nélküli szabadság (FN)</option>
+          <option value="Ig">Igazolatlan távollét (Ig)</option>
+          <option value="rmp">RMP műszak (pihenőnapi rendkívüli munka)</option>
+          <option value="ot">Túlóra jelölése (T → RMP → N)</option>
+          <option value="del">Nap törlése</option>
+        </select></div>
+      <div class="notice" id="virtNote" hidden style="margin-bottom:10px">Ezt a hónapot nem töltötted ki, ezért a program a műszakrend alapján szimulálja (halvány napok). Koppints bármelyik napra: a hónap rögzül, és utána egyenként módosíthatod.</div>
+      <div class="cal" id="cal"></div>
+      <div class="legend" id="legend"></div>
+      <div class="monsum" id="calSum"></div>
+    </div>
+  </div>
+</section>
+
+<!-- KIMUTATÁS -->
+<section class="panel" id="tab-kimutatas" hidden>
+  <div class="card">
+    <div class="monbar">
+      <select id="kY"><option>2026</option><option>2027</option></select>
+      <select id="kM"></select>
+      <button class="btn" id="pdfBtn">Mentés PDF-be</button>
+    </div>
+    <div class="paperwrap"><div class="paper" id="slip"></div></div>
+  </div>
+  <div class="card"><h2>Összevetés a bérjegyzékkel</h2>
+    <p class="hint" style="margin-top:0">Írd be a kapott bérjegyzékről a bruttót és az átutalt nettót. A program megmutatja, mennyi az eltérés és hol érdemes keresni.</p>
+    <div class="cmp">
+      <label class="f">Bérjegyzék szerinti bruttó (Ft)<input id="cmpB" type="number" min="0" step="1"></label>
+      <label class="f">Bérjegyzék szerinti átutalás (Ft)<input id="cmpN" type="number" min="0" step="1"></label>
+    </div>
+    <div class="cmpres" id="cmpRes"></div>
+  </div>
+</section>
+
+<!-- ÉVES -->
+<section class="panel" id="tab-ev" hidden>
+  <div class="card">
+    <div class="monbar"><h2 style="margin:0">Éves áttekintő</h2><select id="eY" aria-label="Év"><option>2026</option><option>2027</option></select></div>
+    <div class="monsum" id="evSum"></div>
+    <div style="margin-top:14px" id="evChart"></div>
+    <p class="hint">Havi kifizetés (bankszámlára). A halványabb oszlopok a ki nem töltött, a műszakrend alapján szimulált hónapok.</p>
+  </div>
+</section>
+
+<!-- TÁMOGATÁSOK -->
+<section class="panel" id="tab-tamogatas" hidden>
+  <div class="notice">Források: Munka Törvénykönyve (2012. évi I. tv.), 39/2010. (II. 26.) Korm. rendelet, Szja tv. 1. számú melléklet és 71. §. Ezeket a juttatásokat a munkáltató adhatja. A törvényben kötelezőket kivéve egyik sem jár automatikusan: hogy nálad mi jár, azt a munkaszerződés, a kollektív szerződés vagy a cafeteria-szabályzat dönti el. A 2026-os adószabályok szerint, tájékoztató jelleggel; a pontos feltételekről a HR-t kérdezd.</div>
+  <div class="card benefit"><h2>Törvény szerint kötelező</h2><ul>
+    <li><b>Munkába járás költségtérítése</b><span class="tag must">kötelező</span> – helyközi bérlet vagy jegy árának legalább 86%-a (39/2010. Korm. rendelet 3. §). Saját autóval a 4. § szerinti esetekben jár (nincs tömegközlekedés; a munkarend miatt nem vagy csak hosszú várakozással használható; súlyos fogyatékosság; bölcsődés vagy 10 év alatti iskolás gyermek): legalább 18 Ft/km, a munkáltató döntésétől függően legfeljebb 30 Ft/km adómentesen.</li>
+    <li><b>Bérpótlékok (Mt.)</b><span class="tag must">kötelező</span> – rendszeresen változó kezdésű többműszakos munkarendben 18 és 6 óra között 30% műszakpótlék (141. §); egyébként 22 és 6 óra között 15% éjszakai pótlék, ha az éjszakai munka meghaladja az 1 órát (142. §); vasárnap 50% a 140. § szerinti munkakörökben, munkaszüneti napon 100% (140. §); túlóra 50%, heti pihenőnapon 100% (143. §). A kollektív szerződés ennél többet adhat.</li>
+    <li><b>Távolléti díj</b><span class="tag must">kötelező</span> – szabadságra az alapbér és az utolsó 6 hónap pótlékátlaga jár (Mt. 146., 148., 151. §); betegszabadságra évi 15 munkanapig ennek 70%-a (126., 146. §).</li>
+  </ul></div>
+  <div class="card benefit"><h2>SZÉP kártya</h2>
+    <p class="hint" style="margin-top:0">Béren kívüli juttatás: a kereten belül a munkáltató 28% közterhet fizet, neked a teljes összeg jár.</p><ul>
+    <li><b>Rekreációs keret</b><span class="tag k28">28%</span> – évente legfeljebb 450 000 Ft (vendéglátás, szállás, szabadidő alszámla).</li>
+    <li><b>Aktív Magyarok keret</b><span class="tag k28">28%</span> – évente további 120 000 Ft sportra, szabadidőre.</li>
+    <li><b>Lakhatási keret 35 év alattiaknak</b><span class="tag k28">28%</span> – évente legfeljebb 1 800 000 Ft (havi 150 000 Ft) albérletre vagy lakáshitel törlesztésére, szerződéssel igazolva.</li>
+  </ul></div>
+  <div class="card benefit"><h2>Adómentes juttatások</h2>
+    <p class="hint" style="margin-top:0">Sem neked, sem a munkáltatónak nem kell utánuk adót fizetni (Szja tv. 1. számú melléklet).</p><ul>
+    <li><b>Kulturális és sportrendezvény belépő</b><span class="tag free">adómentes</span> – évente a minimálbér összegéig; az állatkerti belépő ugyanígy.</li>
+    <li><b>Diákhitel törlesztésének átvállalása</b><span class="tag free">adómentes</span></li>
+    <li><b>Bölcsődei, óvodai ellátás</b><span class="tag free">adómentes</span> – az étkezéssel együtt.</li>
+    <li><b>Home office költségtérítés</b><span class="tag free">adómentes</span> – havonta a minimálbér 10%-áig.</li>
+    <li><b>Egyéb</b><span class="tag free">adómentes</span> – munkaruha és védőeszköz, munkásszállás, kerékpár-használat, munkakörhöz szükséges képzés, védőoltás és szűrővizsgálat, temetési segély, kár utáni segély.</li>
+  </ul></div>
+  <div class="card benefit"><h2>Egyes meghatározott juttatások</h2>
+    <p class="hint" style="margin-top:0">A munkáltató 33,04% közterhet fizet utána, neked a teljes összeg jár.</p><ul>
+    <li><b>Ajándék</b><span class="tag k33">33,04%</span> – évente egyszer, a minimálbér 10%-áig.</li>
+    <li><b>Csoportos élet- és balesetbiztosítás</b><span class="tag k33">33,04%</span> – legalább két biztosítottal.</li>
+    <li><b>Céges telefon magáncélú használata, reprezentáció</b><span class="tag k33">33,04%</span></li>
+  </ul></div>
+  <div class="card benefit"><h2>Bérként adózó juttatások</h2>
+    <p class="hint" style="margin-top:0">Ugyanúgy terheli a 15% SZJA és a 18,5% TB járulék, mint a béredet; a családi kedvezmény ezekből is levonható. Ezeket a cég a saját döntése szerint adja.</p><ul>
+    <li><b>13. havi bér, jutalom, prémium, év végi bónusz</b><span class="tag ber">bér</span></li>
+    <li><b>Üdülési támogatás pénzben</b><span class="tag ber">bér</span></li>
+    <li><b>Letelepedési, beköltözési, lakhatási támogatás pénzben</b><span class="tag ber">bér</span> – albérlet-hozzájárulás, mobilitási célú lakhatási támogatás.</li>
+    <li><b>Iskolakezdési támogatás pénzben</b><span class="tag ber">bér</span></li>
+    <li><b>Önkéntes nyugdíj-, egészség- és önsegélyező pénztári munkáltatói hozzájárulás</b><span class="tag ber">bér</span> – 2019 óta bérként adózik; a befizetés 20%-át SZJA-visszatérítésként kérheted.</li>
+    <li><b>Születési, házassági támogatás pénzben, cafeteria készpénz</b><span class="tag ber">bér</span></li>
+  </ul></div>
+</section>
+</main>
+<div class="toast" id="toast" hidden></div>
+<div class="modal" id="help" hidden role="dialog" aria-modal="true" aria-labelledby="helpT">
+  <div class="box help">
+    <div class="row" style="justify-content:space-between;align-items:center"><h2 id="helpT" style="margin:0">Kitöltési útmutató</h2><button class="btn ghost" id="helpClose">Bezárás</button></div>
+    <p class="hint">Sorrendben érdemes haladni: Adatok → Naptár → Kimutatás. Minden azonnal mentődik.</p>
+    <h3>1. Adatok fül</h3>
+    <ol>
+      <li><b>Személyes adatok:</b> születési év (az életkor szerinti pótszabadsághoz), a munkaviszony kezdete (szabadság arányosítása, munkaidőkeret kezdete), a szerződés típusa (heti óraszám), és ha van, pipáld be a <b>Munkaidőkeretet</b> és írd be a hosszát.</li>
+      <li><b>Jogviszony:</b> általában „Munkaviszony”. A „Munkaviszony típusa” csak a munkáltató költségét érinti, a nettódat nem.</li>
+      <li><b>Bérezés:</b> válaszd ki, hogy havibéres vagy órabéres vagy, és írd be a bruttó alapbért a munkaszerződésből. Pipáld be a délutáni és éjszakai pótlékot, ha jár, és írd át a mértéküket. Jelenléti bónusz, cafeteria (számlára vagy SZÉP kártyára), üzemanyag-térítés: ha nálad van.</li>
+      <li><b>Egyéb levonások:</b> pipáld be, amit levonnak (szakszervezeti tagdíj, letiltás, pénztár stb.).</li>
+      <li><b>Adókedvezmények:</b> a gyermekek száma, akik után családi pótlékot kapsz; anyáknál és 25 év alattiaknál a mentesség.</li>
+      <li><b>Munkarend és szabadság:</b> műszakrend, a <b>referenciahét hétfője</b> és hogy azon a héten melyik műszakban kezdtél – ebből tölti ki a naptárat. A 16 év alatti gyermekek után pótszabadság jár.</li>
+      <li><b>Mentés és megosztás:</b> telefoncsere előtt mentsd el az adatokat fájlba; a munkatársaidnak kóddal átadhatod a műszakbeállításokat.</li>
+    </ol>
+    <h3>2. Naptár fül</h3>
+    <ol>
+      <li>Válaszd ki a műszak hosszát (8, 10 vagy 12 órás), és írd be a műszakok kezdését és végét. A szünet perceit a rendszer levonja, ha be van pipálva.</li>
+      <li>Nyomd meg a <b>„Hónap kitöltése a műszakrend szerint”</b> gombot.</li>
+      <li>Koppints egy napra a módosításhoz: De → Du → Éj → Sz (szabadság) → TP (táppénz) → üres.</li>
+      <li>A <b>Koppintás</b> menüben választhatsz más jelölést: oktatás, kiküldetés, állásidő, fizetés nélküli szabadság, igazolatlan, <b>RMP műszak</b>, túlóra, törlés.</li>
+      <li>Ha műszakhosszt váltasz, csak az ezután megkoppintott napok változnak – így vegyes hónapot is beírhatsz.</li>
+      <li>Halvány T: a heti munkaidő feletti rész, a rendszer túlórának számolja. Munkaidőkeretben a túlóra a keret végén fizetődik, az RMP mindig az adott hónapban.</li>
+      <li>Táppénznél a hétvégét is jelöld. Ha egy hónapban legalább 2 TP nap van, a jelenléti bónusz nem jár.</li>
+    </ol>
+    <h3>3. Kimutatás fül</h3>
+    <ul>
+      <li>A kiválasztott hónap bérjegyzékszerű kimutatása; a <b>Mentés PDF-be</b> gombbal elmentheted.</li>
+      <li><b>Összevetés:</b> írd be a valódi bérjegyzéked bruttóját és átutalását – a program megmutatja az eltérést és hol érdemes keresni.</li>
+    </ul>
+    <h3>4. Éves és Támogatások</h3>
+    <ul>
+      <li><b>Éves:</b> az év összesítője és a havi kifizetések grafikonja. A halvány oszlopok a ki nem töltött, szimulált hónapok.</li>
+      <li><b>Támogatások:</b> milyen juttatásokat adhat a munkáltató és hogyan adóznak – tájékoztató jellegű.</li>
+    </ul>
+    <h3>Jogszabályi alapok</h3>
+    <ul>
+      <li><b>Munka Törvénykönyve (2012. évi I. tv.):</b> munkaidő és munkaidőkeret (92–94. §), munkaközi szünet (103. §), rendkívüli munkaidő (107–109. §), szabadság (115–121. §), betegszabadság (126. §), órabér 174-es osztóval (136. §), bérpótlékok (139–143. §), távolléti díj (146–151. §).</li>
+      <li><b>Személyi jövedelemadó (1995. évi CXVII. tv.):</b> 15% SZJA, családi kedvezmény, 25 év alattiak és anyák kedvezménye, béren kívüli juttatások.</li>
+      <li><b>Társadalombiztosítás (2019. évi CXXII. tv.):</b> 18,5% TB járulék, családi járulékkedvezmény. <b>Szocho (2018. évi LII. tv.):</b> 13%.</li>
+      <li><b>39/2010. (II. 26.) Korm. rendelet:</b> munkába járás költségtérítése. <b>Ebtv.:</b> táppénz 60/50%. <b>Vht.:</b> letiltások korlátai.</li>
+    </ul>
+    <h3>Jó tudni</h3>
+    <ul>
+      <li>A számítás tájékoztató jellegű, nem hivatalos bérjegyzék. Egyszeri tételek (jutalom, korrekció) nincsenek benne.</li>
+      <li>A 2027-es év a benyújtott törvényjavaslatok szerint számol; az elfogadás után változhat.</li>
+      <li>Az adatok csak a te készülékeden (vagy fiókodban) tárolódnak, senkinek nem küldjük el.</li>
+    </ul>
+  </div>
+</div>
+
+
+<div class="modal" id="wiz" hidden role="dialog" aria-modal="true" aria-labelledby="wizT">
+  <div class="box">
+    <h2 id="wizT">Üdvözöl a Műszakos Bérkalkulátor</h2>
+    <p class="hint" style="margin-top:0">Pár adat, és már számol is. Minden később módosítható az Adatok fülön.</p>
+    <div class="grid2" style="margin-top:10px">
+      <label class="f">Bérkategória<select id="wBertip"><option value="havi">Havibér</option><option value="ora">Órabér</option></select></label>
+      <label class="f">Bruttó alapbér (Ft)<input id="wBer" type="number" min="0" step="1"></label>
+      <label class="f">Születési év<input id="wSzulev" type="number" min="1940" max="2015"></label>
+      <label class="f">Gyermekek száma (családi pótlékra jogosult)<input id="wGyerek" type="number" min="0" max="12"></label>
+      <label class="f">ebből 16 év alatti<input id="wGy16" type="number" min="0" max="12"></label>
+      <label class="f">Műszak hossza<select id="wLen"><option value="8">8 órás</option><option value="10">10 órás</option><option value="12">12 órás</option></select></label>
+      <label class="f">Műszakrend<select id="wMsz"></select></label>
+      <label class="f">Ezen a héten hétfőn ezzel kezdesz<select id="wRef"></select></label>
+    </div>
+    <label class="chk" style="margin-top:10px"><input id="wKeret" type="checkbox"> Munkaidőkeretben dolgozom</label>
+    <div class="row" style="margin-top:16px;justify-content:flex-end">
+      <button class="btn ghost" id="wSkip">Kihagyás</button>
+      <button class="btn" id="wOk">Kész</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const PERSONAL=false; // a Play-változatban false: általános alapértékek + varázsló
+/* ---------- Jogszabályi paraméterek ---------- */
+const YP={
+ 2026:{minber:322800,kozfGar:186600,kfRate:0.5,cap25:715765,ck:[20000,40000,66000],szem:16140,hazas:5000,jov:0,anyaCap:Infinity,
+   cspot:{csalad:[12200,13300,16000],egyedul:[13700,14800,17000]},note:"2026-os szabályok."},
+ 2027:{minber:322800,kozfGar:186600,kfRate:1,cap25:715765,ck:[20000,40000,66000],szem:16140,hazas:5000,jov:0.06,anyaCap:1000000,
+   cspot:{csalad:[24400,26600,32000],egyedul:[27400,29600,34000]},
+   note:"2027: a T/927–T/931 törvényjavaslatok szerint (adójóváírás, anyák 1 M Ft-os határa, dupla családi pótlék). A 2027-es minimálbér még nincs megállapítva, a 2026-os szerepel."}
+};
+const HOL={2026:["01-01","03-15","04-03","04-05","04-06","05-01","05-24","05-25","08-20","10-23","11-01","12-25","12-26"],
+           2027:["01-01","03-15","03-26","03-28","03-29","05-01","05-16","05-17","08-20","10-23","11-01","12-25","12-26"]};
+// Áthelyezett munkanapok (NGM rendelet). 2027-re még nem jelent meg rendelet.
+const SWAP={2026:{work:["01-10","08-08","12-12"],rest:["01-02","08-21","12-24"]},2027:{work:[],rest:[]}};
+const MONTHS=["Január","Február","Március","Április","Május","Június","Július","Augusztus","Szeptember","Október","November","December"];
+const DOWS=["H","K","Sze","Cs","P","Szo","V"];
+const WORK=["De","Du","Éj"];
+const ABS_PAID=["Sz","TP","Okt","Áll","Kik"]; // munkanapon a heti/keret időbe beszámít
+const FIX={vas:50,un:100,tul:50,rmp:100};
+const LEN_PRESET={
+ "8":{shifts:{De:{s:"06:00",e:"14:20"},Du:{s:"14:00",e:"22:20"},"Éj":{s:"22:00",e:"06:20"}},brk:20},
+ "10":{shifts:{De:{s:"06:00",e:"16:45"},Du:{s:"14:00",e:"00:45"},"Éj":{s:"20:00",e:"06:45"}},brk:45},
+ "12":{shifts:{De:{s:"06:00",e:"18:00"},Du:{s:"10:00",e:"22:00"},"Éj":{s:"18:00",e:"06:00"}},brk:45}};
+const LEVS=[
+ {id:"szak",n:"Szakszervezeti tagdíj",u:"%",b:"brutto",v:1,on:true},
+ {id:"vegr",n:"Végrehajtási letiltás (behajtás)",u:"%",b:"netto",v:33},
+ {id:"tartas",n:"Gyermektartásdíj letiltás",u:"%",b:"netto",v:20},
+ {id:"nyp",n:"Önkéntes nyugdíjpénztár tagdíj",u:"%",b:"brutto",v:3},
+ {id:"egp",n:"Egészség- és önsegélyező pénztár",u:"%",b:"brutto",v:2},
+ {id:"bizt",n:"Biztosítási díj (csoportos élet-, baleset)",u:"Ft",b:"brutto",v:3000},
+ {id:"kolcson",n:"Munkáltatói kölcsön törlesztése",u:"Ft",b:"brutto",v:20000},
+ {id:"eloleg",n:"Fizetési előleg visszavonása",u:"Ft",b:"brutto",v:50000},
+ {id:"etkezo",n:"Üzemi étkezés térítési díja",u:"Ft",b:"brutto",v:10000},
+ {id:"karter",n:"Kártérítés, leltárhiány",u:"Ft",b:"brutto",v:5000},
+ {id:"egyeb",n:"Egyéb levonás",u:"Ft",b:"brutto",v:0}];
+function levCfg(){if(!S.lev){S.lev={};for(const L of LEVS)S.lev[L.id]={on:PERSONAL&&!!L.on,v:L.id==="szak"&&S.tagdij!=null?+S.tagdij:L.v,u:L.u}}
+  for(const L of LEVS)if(!S.lev[L.id])S.lev[L.id]={on:false,v:L.v,u:L.u};return S.lev}
+const SZJA=0.15,TB=0.185,SZOCHO=0.13,KMLIMIT=30,BETEGNAP=15;
+
+function thisMonday(){const d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+const BASE={szulev:1990,mvKezd:"",szerz:"t40",hetiOra:40,keretOn:false,keretHossz:1,keretEgys:"ev",jogv:"mv",bertip:"havi",ber:0,pDelOn:true,pDel:30,pEjOn:true,pEj:30,vasOn:true,
+ bonuszOn:false,bonuszPct:"5",szkedv:"none",cafe:0,cafeMod:"szamla",kmft:0,kmnap:0,lev:null,kedv:"none",gyerek:0,ckArany:100,cspotTip:"csalad",hazas:false,szemelyi:false,bizt2:true,
+ msz:"3",mszHossz:"8",refDate:thisMonday(),refShift:"De",rotOrder:"De,Du,Éj",gy16:0,gyFogy:0,veszely:"0",vasEj:false,dec24:false,
+ shiftsByLen:{"8":JSON.parse(JSON.stringify(LEN_PRESET["8"].shifts)),"10":JSON.parse(JSON.stringify(LEN_PRESET["10"].shifts)),"12":JSON.parse(JSON.stringify(LEN_PRESET["12"].shifts))},
+ brkByLen:{"8":20,"10":45,"12":45},oldLen:"8",veco:{De:false,Du:false,"Éj":false},vecoMin:{De:25,Du:25,"Éj":25},brkDed:true,cmp:{},wizDone:false};
+const MINE={};
+const DEFAULTS=Object.assign(JSON.parse(JSON.stringify(BASE)),PERSONAL?JSON.parse(JSON.stringify(MINE)):{});
+let S=JSON.parse(JSON.stringify(DEFAULTS));
+let DAYS={2026:{},2027:{}};      // DAYS[year]["MM-DD"]={c:"De",t:"T"|"R"|"N"}
+let view={y:2026,m:new Date().getFullYear()===2027?new Date().getMonth():(new Date().getFullYear()===2026?new Date().getMonth():10)};
+
+/* ---------- Segédek ---------- */
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,"0");
+const key=(m,d)=>pad(m+1)+"-"+pad(d);
+const ft=n=>(Math.round(n)||0).toLocaleString("hu-HU").replace(/ /g," ")+" Ft";
+const hr=min=>(min/60).toLocaleString("hu-HU",{minimumFractionDigits:2,maximumFractionDigits:2});
+const toMin=t=>{if(!t)return null;const [h,m]=t.split(":").map(Number);return h*60+m};
+const ov=(s,e,a,b)=>Math.max(0,Math.min(e,b)-Math.max(s,a));
+const norm3=(y,m,d)=>{const dt=new Date(y,m,d);return [dt.getFullYear(),dt.getMonth(),dt.getDate()]};
+const dowOf=(y,m,d)=>(new Date(y,m,d).getDay()+6)%7; // 0=hétfő … 6=vasárnap
+function holList(y){const l=(HOL[y]||[]).slice();if(S.dec24)l.push("12-24");return l}
+const isHol=(y,m,d)=>{const [yy,mm,dd]=norm3(y,m,d);return holList(yy).includes(key(mm,dd))};
+function isSwapWork(y,m,d){const [yy,mm,dd]=norm3(y,m,d);const k=key(mm,dd);if(S.dec24&&yy===2026&&k==="12-12")return false;return ((SWAP[yy]||{}).work||[]).includes(k)}
+function isSwapRest(y,m,d){const [yy,mm,dd]=norm3(y,m,d);const k=key(mm,dd);if(S.dec24&&k==="12-24")return false;return ((SWAP[yy]||{}).rest||[]).includes(k)}
+function isWorkday(y,m,d){if(isHol(y,m,d)||isSwapRest(y,m,d))return false;if(isSwapWork(y,m,d))return true;return dowOf(y,m,d)<5}
+const dim=(y,m)=>new Date(y,m+1,0).getDate();
+const getEnt=(y,m,d)=>{const [yy,mm,dd]=norm3(y,m,d);const k=key(mm,dd);return (DAYS[yy]||{})[k]||(VIRT[yy]||{})[k]};
+/* ---------- Munkaviszony kezdete, szimulált (ki nem töltött) hónapok ---------- */
+let VIRT={};
+const startDate=()=>S.mvKezd?new Date(S.mvKezd+"T00:00:00"):null;
+function employed(y,m,d){const s=startDate();return !s||new Date(y,m,d)>=s}
+const nowIdx=()=>{const n=new Date();return (n.getFullYear()-2026)*12+n.getMonth()};
+const monthStored=(y,m)=>{const pre=pad(m+1)+"-";return Object.keys(DAYS[y]||{}).some(k=>k.startsWith(pre))};
+const isVirtMonth=(y,m)=>!!(VIRT[y]&&VIRT[y]["__"+m]);
+// A mai hónap előtti, teljesen üres hónapokat a műszakrend alapján visszaszimulálja (a munkaviszony kezdetétől).
+function buildVirt(){VIRT={};const ci=nowIdx();
+  for(const y of [2026,2027])for(let m=0;m<12;m++){if((y-2026)*12+m>=ci||monthStored(y,m))continue;
+    const v={};let n=0;for(let d=1;d<=dim(y,m);d++){if(!employed(y,m,d))continue;const c=autoCode(y,m,d);if(c){v[key(m,d)]={c,L:S.mszHossz};n++}}
+    if(n){VIRT[y]=VIRT[y]||{};Object.assign(VIRT[y],v);VIRT[y]["__"+m]=1}}}
+function materialize(y,m){if(!isVirtMonth(y,m))return;const ds=DAYS[y]||(DAYS[y]={});const pre=pad(m+1)+"-";
+  for(const [k,v] of Object.entries(VIRT[y]))if(k.startsWith(pre))ds[k]=Object.assign({},v);delete VIRT[y]["__"+m]}
+function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,3200)}
+function codesFor(L){return (L||S.mszHossz)==="8"?["De","Du","Éj"]:["De","Éj"]}
+const entLen=ent=>(ent&&ent.L)||S.oldLen||"8";
+const brkOf=L=>{const v=(S.brkByLen||{})[L];return v==null?LEN_PRESET[L].brk:+v||0};
+
+const SZERZ={t40:[40,8,0],t12:[40,12,0],k12:[60,12,0],r36:[36,7.2,0],r30:[30,6,0],r24:[24,4.8,0],r20:[20,4,0],r16:[16,3.2,0],kot:[40,8,1]};
+function contract(){const c=SZERZ[S.szerz];if(c)return {W:c[0],D:c[1],kot:!!c[2]};const W=Math.max(1,Math.min(60,+S.hetiOra||40));return {W,D:W/5,kot:false}}
+function napiMin(){return Math.round(contract().W/5*60)}
+function workDays(y,m){let n=0;for(let d=1;d<=dim(y,m);d++)if(isWorkday(y,m,d))n++;return n}
+function workHours(y,m){return workDays(y,m)*contract().W/5}
+function keretLen(){return Math.max(1,Math.min(36,Math.round((+S.keretHossz||1)*(S.keretEgys==="ho"?1:12))))}
+// Havibérnél az adott hónap általános munkarend szerinti munkaideje (munkanapok + hétköznapi munkaszüneti napok): így a teljes hónapra pontosan a havibér jár (Mt. 149. §)
+function paidHours(y,m){let n=0;for(let d=1;d<=dim(y,m);d++)if(isWorkday(y,m,d)||(isHol(y,m,d)&&dowOf(y,m,d)<5))n++;return n*contract().W/5}
+function minuteRate(y,m){const b=+S.ber||0;if(S.bertip==="ora")return b/60;if(S.bertip==="perc")return b;return b/(paidHours(y,m)||174)/60}
+// Bérpótlék és rendkívüli munka alapja: havibérnél havibér / 174 óra, részmunkaidőben időarányosan (Mt. 136. §, 139. §)
+function potRate(y,m){if(S.bertip!=="havi")return minuteRate(y,m);return (+S.ber||0)/(174*contract().W/40)/60}
+function ageIn(y){return y-(+S.szulev||y)}
+
+/* ---------- Szabadság (Mt. 116–121. §) ---------- */
+// Mt. 126. §: évi 15 munkanap betegszabadság, év közben kezdődő munkaviszonynál arányosan
+function betegKeret(y){const s0=startDate();if(!s0||s0<=new Date(y,0,1))return BETEGNAP;if(s0>=new Date(y+1,0,1))return 0;
+  const f=Math.round((new Date(y+1,0,1)-s0)/86400000)/Math.round((new Date(y+1,0,1)-new Date(y,0,1))/86400000);return Math.floor(BETEGNAP*f+0.5)}
+function szabadsag(y){
+  const age=ageIn(y);const ek=[[45,10],[43,9],[41,8],[39,7],[37,6],[35,5],[33,4],[31,3],[28,2],[25,1]];
+  let elet=0;for(const [a,n] of ek){if(age>=a){elet=n;break}}
+  const g=+S.gy16||0;let gy=g<=0?0:g===1?2:g===2?4:7;gy+=2*(+S.gyFogy||0);
+  const vesz=S.veszely!=="0"?5:0;const fiatal=age<18?5:0;
+  const teljes=20+elet+gy+vesz+fiatal;
+  let arany=1,belepve=true;if(S.mvKezd){const k=new Date(S.mvKezd+"T00:00:00");const y0=new Date(y,0,1),y1=new Date(y+1,0,1);
+    if(k>=y1){arany=0;belepve=false}else if(k>y0){arany=Math.round((y1-k)/86400000)/Math.round((y1-y0)/86400000)}}
+  const ossz=arany>=1?teljes:Math.floor(teljes*arany+0.5);
+  return {alap:20,elet,gy,vesz,fiatal,teljes,arany,belepve,ossz};
+}
+
+/* ---------- Műszakrend automatikus kitöltés ---------- */
+function mszOptions(){return S.mszHossz==="8"?[["1","1 – egy műszak (délelőtt, H–P)"],["2","2 – két műszak (De / Du hetente)"],["3","3 – három műszak (heti forgó)"],["4","4 – folytonos (2 De, 2 Du, 2 Éj, 2 szabad)"]]
+  :[["1","1 – csak nappal (H–P)"],["2","2 – heti váltás (nappal / éjszaka)"],["3","3 – nappal, éjszaka, 2 pihenőnap"],["4","4 – 2 nappal, 2 éjszaka, 4 pihenőnap"]]}
+function weekIdx(y,m,d){const ref=new Date(S.refDate+"T00:00:00");const refMon=new Date(ref);refMon.setDate(ref.getDate()-((ref.getDay()+6)%7));
+  const dt=new Date(y,m,d);const mon=new Date(dt);mon.setDate(dt.getDate()-((dt.getDay()+6)%7));return Math.round((mon-refMon)/604800000)}
+function weekShift(k){const mode=S.msz;
+  if(S.mszHossz!=="8"){const seq=S.refShift==="Éj"?["Éj","De"]:["De","Éj"];return seq[((k%2)+2)%2]}
+  if(mode==="2"){const seq=S.refShift==="Du"?["Du","De"]:["De","Du"];return seq[((k%2)+2)%2]}
+  const ord=S.rotOrder.split(",");const i0=Math.max(0,ord.indexOf(S.refShift));return ord[(((i0+k)%3)+3)%3]}
+function autoCode(y,m,d){const dw=dowOf(y,m,d);const mode=S.msz;
+  const dayN=()=>Math.round((new Date(y,m,d)-new Date(S.refDate+"T00:00:00"))/86400000);
+  if(S.mszHossz!=="8"&&(mode==="3"||mode==="4")){const cyc=mode==="3"?["De","Éj","",""]:["De","De","Éj","Éj","","","",""];
+    const off=S.refShift==="Éj"?(mode==="3"?1:2):0;const n=dayN();return cyc[(((n+off)%cyc.length)+cyc.length)%cyc.length]}
+  if(mode==="4"){const cyc=["De","De","Du","Du","Éj","Éj","",""];const off={De:0,Du:2,"Éj":4}[S.refShift]||0;const n=dayN();return cyc[(((n+off)%8)+8)%8]}
+  if(!isWorkday(y,m,d)){
+    if(S.mszHossz==="8"&&mode==="3"&&S.vasEj&&dw===6&&weekShift(weekIdx(y,m,d)+1)==="Éj")return "Éj";
+    return ""}
+  if(mode==="1")return "De";
+  return weekShift(weekIdx(y,m,d))}
+
+/* ---------- Egy nap ---------- */
+function shiftTimes(code,dw,L){const sh=((S.shiftsByLen||{})[L||"8"]||{})[code];if(!sh)return null;
+  let s=toMin(sh.s),e=toMin(sh.e);if(s==null||e==null)return null;if(e<=s)e+=1440;
+  if(dw===0&&S.veco&&S.veco[code]){const v=Math.max(0,+((S.vecoMin||{})[code]??25)||0);if(code==="De")e+=v;else s-=v}
+  return {s,e}}
+function dayBase(y,m,d,ent){const r={work:0,norm:0,del:0,ej:0,vas:0,un:0,tul:0,rmp:0,worked:false,ot:""};
+  if(!ent||!WORK.includes(ent.c))return r;
+  const dw=dowOf(y,m,d);const L=entLen(ent);const t=shiftTimes(ent.c,dw,L);if(!t)return r;
+  const {s,e}=t;r.start=s;r.end=e;r.worked=true;r.L=L;
+  r.work=Math.max(0,e-s-(S.brkDed?brkOf(L):0));
+  r.del=ov(s,e,1080,1320)+ov(s,e,2520,2760);
+  r.ej=ov(s,e,0,360)+ov(s,e,1320,1800)+ov(s,e,2760,3240);
+  if(S.pDelOn===false&&r.ej<=60)r.ej=0; // Mt. 142. §: éjszakai pótlék csak 1 óránál hosszabb éjszakai munkára
+  const h0=isHol(y,m,d),h1=isHol(y,m,d+1),dw1=(dw+1)%7;
+  r.un=(h0?ov(s,e,0,1440):0)+(h1?ov(s,e,1440,2880):0);
+  r.vas=S.vasOn===false?0:((dw===6&&!h0)?ov(s,e,0,1440):0)+((dw1===6&&!h1)?ov(s,e,1440,2880):0);
+  return r}
+let OTMAP={};
+function dayCalc(y,m,d,ent){const r=dayBase(y,m,d,ent);if(!r.worked)return r;
+  const typ=ent.t===1?(dowOf(y,m,d)>=5?"R":"T"):ent.t;
+  if(typ==="T"){r.tul=r.work;r.ot="T"}
+  else if(typ==="R"){r.rmp=r.work;r.vas=0;r.ot="R"}
+  else if(typ!=="N"){const [yy,mm,dd]=norm3(y,m,d);const om=OTMAP[yy+"-"+key(mm,dd)];if(om&&om.o>0){const o=Math.min(om.o,r.work);
+    // Mt. 143. §: heti pihenőnapon (beosztáson kívül) végzett rendkívüli munka 100%, egyébként 50%
+    if(om.r){r.rmp=o;r.ot="R*";if(o>=r.work){r.vas=0;r.un=0}}else{r.tul=o;r.ot="T*"}}}
+  r.norm=r.work-r.tul-r.rmp;return r}
+// Heti túlóra (Mt. 107. §): munkaidőkeret nélkül a heti munkaidő (munkanapok × napi munkaidő) feletti munka túlóra.
+// Az éjszakás műszak a következő naphoz (a hét, ahova a nagyobb része esik) számít.
+let WEEKS=[];
+function buildOT(){const M={};WEEKS=[];const doOT=!S.keretOn&&!contract().kot;const dm=napiMin();
+  const dt=new Date(2025,11,29),end=new Date(2028,0,3);
+  while(dt<end){const week=[];for(let i=0;i<7;i++){week.push([dt.getFullYear(),dt.getMonth(),dt.getDate()]);dt.setDate(dt.getDate()+1)}
+    let cap=0;for(const [y,m,d] of week)if(isWorkday(y,m,d))cap+=dm;
+    let used=0,work=0,credit=0,ot=0,rmp=0;
+    for(const [y,m,d] of week){const list=[];const pe=getEnt(y,m,d-1);if(pe&&pe.c==="Éj")list.push([...norm3(y,m,d-1),pe]);
+      const ce=getEnt(y,m,d);if(ce&&ce.c!=="Éj")list.push([y,m,d,ce]);
+      for(const [yy,mm,dd,e] of list){
+        if(WORK.includes(e.c)){const w=dayBase(yy,mm,dd,e).work;work+=w;
+          if(e.t==="T"){ot+=w;continue}if(e.t==="R"||e.t===1){rmp+=w;continue}
+          if(e.t==="N"||!doOT){used+=w;continue}
+          const rem=Math.max(0,cap-used);const o=Math.max(0,w-rem);used+=w-o;
+          if(o>0){const restDay=!isWorkday(yy,mm,dd)&&!autoCode(yy,mm,dd);M[yy+"-"+key(mm,dd)]={o,r:restDay};if(restDay)rmp+=o;else ot+=o}}
+        else if(ABS_PAID.includes(e.c)&&isWorkday(yy,mm,dd)){used+=dm;credit+=dm}}}
+    WEEKS.push({start:week[0],end:week[6],cap,work,credit,ot,rmp,over:Math.max(0,work+credit-ot-rmp-cap)})}
+  return M}
+/* ---------- Munkaidőkeret ---------- */
+function monthDiff(y,m){const dm=napiMin();let done=0,target=0,abs=0;
+  for(let d=1;d<=dim(y,m);d++){if(!employed(y,m,d))continue;const wd=isWorkday(y,m,d),ent=getEnt(y,m,d);
+    if(wd)target+=dm;
+    if(ent&&WORK.includes(ent.c))done+=dayCalc(y,m,d,ent).norm;
+    else if(ent&&wd&&ABS_PAID.includes(ent.c)){done+=dm;if(ent.c!=="Kik")abs+=dm}
+    else if(ent&&wd&&(ent.c==="FN"||ent.c==="Ig")){abs+=dm}}
+  return {done,target,abs}}
+function keretAnchor(){const s0=startDate();return s0?(s0.getFullYear()-2026)*12+s0.getMonth():0}
+function keretInfo(y,m){if(!S.keretOn)return null;const L=keretLen();const A=keretAnchor();const idx=(y-2026)*12+m;if(idx<A)return null;
+  const rel=idx-A;const st=idx-rel%L;const ci=nowIdx();let bal=0;
+  for(let k=Math.max(st,0);k<=idx;k++){const yy=2026+Math.floor(k/12),mm=k%12;
+    if(k>=ci&&!monthStored(yy,mm)&&!isVirtMonth(yy,mm))continue; // még nem kitöltött jövőbeli hónap
+    const r=monthDiff(yy,mm);bal+=r.done-r.target}
+  const e=st+L-1;return {bal,isEnd:idx===e,startY:2026+Math.floor(st/12),startM:((st%12)+12)%12,endY:2026+Math.floor(e/12),endM:((e%12)+12)%12,L,partial:st<0}}
+
+/* ---------- Távolléti díj pótlékátlaga (Mt. 148. §) ---------- */
+// Mt. 148., 151. §: pótlékátlag = az irányadó időszakban (utolsó 6 naptári hónap) kifizetett, figyelembe veendő bérpótlék
+// osztva a rendes munkaidőben teljesített órákkal. Műszak- és éjszakai pótlék: ha a beosztott idő legalább 30%-a pótlékos;
+// vasárnapi pótlék: ha a vasárnapok legalább egyharmadán dolgozott. A rendkívüli munka és a munkaszüneti napi pótlék nem számít bele.
+function potlekAtlag(hist,cur){let prev=hist.slice(-6).filter(h=>h.work>0);if(!prev.length)prev=cur.work>0?[cur]:[];if(!prev.length)return 0;
+  const norm=prev.reduce((s,h)=>s+h.norm,0);if(!norm)return 0;
+  const potMin=prev.reduce((s,h)=>s+h.del+h.ej,0),sunW=prev.reduce((s,h)=>s+(h.sunW||0),0),sunT=prev.reduce((s,h)=>s+(h.sunT||0),0);
+  let sum=0;if(potMin>=0.3*norm)sum+=prev.reduce((s,h)=>s+h.pot.del+h.pot.ej,0);
+  if(sunT&&sunW*3>=sunT)sum+=prev.reduce((s,h)=>s+h.pot.vas,0);
+  return sum/norm}
+/* ---------- Teljes számítás (2026 → 2027, sorrendben) ---------- */
+let CALC=null;
+function calcYear(y){if(!CALC)CALC=calcAll();return CALC[y]}
+function calcAll(){buildVirt();OTMAP=buildOT();const res={2026:[],2027:[]};const hist=[];
+  for(const y of [2026,2027]){const st={beteg:0,szab:0};for(let m=0;m<12;m++){const a=calcMonth(y,m,hist,st);res[y].push(a);hist.push(a)}}
+  return res}
+function calcMonth(y,m,hist,st){const P=YP[y];const pr=minuteRate(y,m);const dm=napiMin();
+  const a={y,m,days:0,work:0,norm:0,del:0,ej:0,vas:0,un:0,tul:0,rmp:0,unfizMin:0,unfizNap:0,szNap:0,szMin:0,bNap:0,tpNap:0,tpDb:0,
+    oktNap:0,kikNap:0,allNap:0,fnNap:0,igNap:0};
+  let empDays=0;
+  for(let d=1;d<=dim(y,m);d++){if(!employed(y,m,d))continue;empDays++;const ent=getEnt(y,m,d);const wd=isWorkday(y,m,d);const c=ent?ent.c:"";
+    if(dowOf(y,m,d)===6)a.sunT=(a.sunT||0)+1;
+    if(WORK.includes(c)){const r=dayCalc(y,m,d,ent);a.days++;for(const k of ["work","norm","del","ej","vas","un","tul","rmp"])a[k]+=r[k];if(r.vas>0)a.sunW=(a.sunW||0)+1}
+    else if(c==="Sz"){if(wd){a.szNap++;a.szMin+=dm}}
+    else if(c==="TP"){a.tpDb++;if(st.beteg<betegKeret(y)){if(wd){st.beteg++;a.bNap++}}else a.tpNap++}
+    else if(c==="Okt"){if(wd)a.oktNap++}
+    else if(c==="Kik"){if(wd)a.kikNap++}
+    else if(c==="Áll"){if(wd)a.allNap++}
+    else if(c==="FN"){if(wd)a.fnNap++}
+    else if(c==="Ig"){if(wd)a.igNap++}
+    else if(isHol(y,m,d)&&dowOf(y,m,d)<5){a.unfizNap++;a.unfizMin+=dm}}
+  st.szab+=a.szNap;a.szabEddig=st.szab;a.betegEddig=st.beteg;
+  const ki=keretInfo(y,m);a.keret=ki;a.keretTul=0;
+  if(ki&&ki.isEnd&&ki.bal>0){a.keretTul=ki.bal;a.tul+=ki.bal}
+  // pótlékok összegei
+  const qr=potRate(y,m);a.qr=qr;
+  a.pot={del:S.pDelOn!==false?a.del*qr*S.pDel/100:0,ej:S.pEjOn!==false?a.ej*qr*S.pEj/100:0,vas:a.vas*qr*FIX.vas/100,un:a.un*qr*FIX.un/100,tul:a.tul*qr*FIX.tul/100,rmp:a.rmp*qr*FIX.rmp/100};
+  const pa=potlekAtlag(hist,a);a.pa=pa;
+  const L=[];const add=(id,label,min,amt)=>{L.push({id,label,min,amt:Math.round(amt)})};
+  let alapMin=a.norm+a.kikNap*dm,alapLbl="Alapbér (ledolgozott idő)";
+  // Havibér: a hónap teljes havibére jár, csökkentve a távollétek napjaival (azokat külön sorok fizetik) – Mt. 149. §
+  if(S.bertip==="havi"){let pm=0,ab=0;for(let d=1;d<=dim(y,m);d++){if(!employed(y,m,d))continue;const wd=isWorkday(y,m,d),hw=isHol(y,m,d)&&dowOf(y,m,d)<5;if(!wd&&!hw)continue;
+      pm+=dm;const e=getEnt(y,m,d);const c=e?e.c:"";if(["Sz","Okt","Áll","FN","Ig","TP"].includes(c))ab+=dm;else if(hw&&!WORK.includes(c))ab+=dm}
+    alapMin=Math.max(0,pm-ab);alapLbl="Alapbér (havibér, ledolgozott napok)"}
+  add("alap",alapLbl,alapMin,alapMin*pr);
+  const oktMin=a.oktNap*dm,allMin=a.allNap*dm,bMin=a.bNap*dm;
+  add("szab","Fizetett szabadság (távolléti díj)",a.szMin,a.szMin*pr);
+  add("unnepfiz","Fizetett ünnep (távolléti díj)",a.unfizMin,a.unfizMin*pr);
+  add("okt","Oktatás (alapbér)",oktMin,oktMin*pr);
+  const tavMin=a.szMin+(S.bertip==="havi"?0:a.unfizMin); // havibérnél az ünnepnapot a havibér fedezi (Mt. 146. § (3))
+  add("tavemelt","Távolléti díj emelt rész (pótlékátlag)",tavMin,tavMin*pa);
+  add("all","Állásidő (alapbér)",allMin,allMin*pr);
+  add("beteg","Betegszabadság 70%",bMin,bMin*(pr+pa)*0.7);
+  const alapHavi=S.bertip==="havi"?(+S.ber||0):pr*60*workHours(y,m);
+  const tpRate=S.bizt2!==false?0.6:0.5;
+  const tpNapi=Math.min(tpRate*(alapHavi+pa*workHours(y,m)*60)/30,P.minber*2/30);a.tpNapi=tpNapi;a.tpRate=tpRate;
+  add("tp",`Táppénz ${Math.round(tpRate*100)}% (NEAK)`,null,a.tpNap*tpNapi);
+  if(S.pDelOn!==false)add("del",`Délutáni pótlék ${S.pDel}%`,a.del,a.pot.del);
+  if(S.pEjOn!==false)add("ej",`Éjszakai pótlék ${S.pEj}%`,a.ej,a.pot.ej);
+  add("vas",`Vasárnapi pótlék ${FIX.vas}%`,a.vas,a.pot.vas);
+  add("un",`Ünnepnapi pótlék ${FIX.un}%`,a.un,a.pot.un);
+  add("tulalap","Túlóra / RMP alapbér",a.tul+a.rmp,(a.tul+a.rmp)*qr);a.rmpNap=0;for(let d=1;d<=dim(y,m);d++){const e=getEnt(y,m,d);if(e&&WORK.includes(e.c)&&e.t==="R")a.rmpNap++}
+  add("tul",`Túlóra pótlék ${FIX.tul}%`,a.tul,a.pot.tul);
+  add("rmp",`RMP pótlék ${FIX.rmp}%`,a.rmp,a.pot.rmp);
+  a.virt=isVirtMonth(y,m);a.active=empDays>0;
+  a.bonuszLost=!!S.bonuszOn&&a.tpDb>=2;
+  if(S.bonuszOn&&a.active)L.push({id:"bonusz",label:`Jelenléti bónusz ${String(S.bonuszPct).replace(".",",")}%`+(a.bonuszLost?` – nem jár (${a.tpDb} TP nap)`:""),min:null,amt:a.bonuszLost?0:Math.round(alapHavi*(+S.bonuszPct||0)/100),lost:a.bonuszLost});
+  const cafeAmt=+S.cafe||0;a.szep=S.cafeMod==="szep"?cafeAmt:0;
+  if(!a.active)a.szep=0;else if(S.cafeMod!=="szep")add("cafe","Cafeteria készpénz (számlás kiutalás)",null,cafeAmt);
+  const km=a.days*(+S.kmnap||0);a.km=km;
+  a.kmMentes=Math.round(km*Math.min(+S.kmft||0,KMLIMIT));
+  add("kmado","Munkába járás adóköteles része",null,km*Math.max(0,(+S.kmft||0)-KMLIMIT));
+  a.lines=L;a.brutto=L.reduce((s,x)=>s+x.amt,0);
+  a.tpFt=L.find(x=>x.id==="tp").amt;
+  a.hasData=a.days+a.szNap+a.bNap+a.tpNap+a.oktNap+a.kikNap+a.allNap+a.fnNap+a.igNap>0;
+  tax(a,P);a.szepTeher=Math.round(a.szep*1.18*(SZJA+SZOCHO));a.koltseg+=a.szep+a.szepTeher;
+  return a}
+
+function tax(a,P){const J=S.jogv;const B=a.brutto;
+  if(J==="efo"){Object.assign(a,{tagdij:0,szjaAlap:0,exempt:0,szjaSz:0,jov:0,szem:0,hazas:0,ckKeret:0,ckSzja:0,szja:0,tbAlap:0,tbSz:0,ckJar:0,tb:0,szocho:0,szochoKedv:0});
+    a.netto=B;applyLev(a,B);a.koltseg=B+a.kmMentes;return}
+  const lc=levCfg().szak;const tag=lc.on?Math.round(lc.u==="%"?B*(+lc.v||0)/100:(+lc.v||0)):0;a.tagdij=tag;
+  let jov=B; if(J==="megb")jov=B*0.9;
+  const alap=Math.max(0,Math.round(jov-tag));a.szjaAlap=alap;
+  let cap=0;const k=S.kedv;
+  if(k==="fiatal")cap=P.cap25;else if(k.startsWith("anya"))cap=P.anyaCap;
+  const ex=Math.min(alap,cap);a.exempt=ex;
+  let szja=Math.round((alap-ex)*SZJA);a.szjaSz=Math.round(alap*SZJA);
+  let jv=0;if(P.jov>0&&["mv","koz","nyugd","diak"].includes(J)){const bb=B-a.tpFt;jv=bb<=P.minber?bb*P.jov:Math.max(0,P.jov*P.minber-P.jov*(bb-P.minber));jv=Math.min(szja,Math.round(jv))}
+  szja-=jv;a.jov=jv;
+  const sz=S.szemelyi?Math.min(szja,P.szem):0;szja-=sz;a.szem=sz;
+  const hz=S.hazas?Math.min(szja,P.hazas):0;szja-=hz;a.hazas=hz;
+  const g=+S.gyerek||0;const per=g<=0?0:g===1?P.ck[0]:g===2?P.ck[1]:P.ck[2];
+  const ckTot=Math.round(per*g*(+S.ckArany||0)/100);a.ckKeret=ckTot;
+  const ckS=Math.min(szja,ckTot);szja-=ckS;a.ckSzja=ckS;a.szja=szja;
+  const tbRate=(J==="nyugd"||J==="diak")?0:TB;
+  const tbAlap=Math.max(0,Math.round((J==="megb"?jov:B)-a.tpFt));a.tbAlap=tbAlap;
+  const tbSz=Math.round(tbAlap*tbRate);a.tbSz=tbSz;
+  const ckJ=Math.min(tbSz,ckTot-ckS);a.ckJar=ckJ;a.tb=tbSz-ckJ;
+  const szAlap=(J==="nyugd"||J==="diak")?0:tbAlap;const mb=P.minber;const sk={
+    none:0,mpl12:Math.min(szAlap,mb),mpl3:Math.min(szAlap,mb)*0.5,szakn:Math.min(szAlap,mb*0.5),no13:Math.min(szAlap,mb),no45:Math.min(szAlap,mb)*0.5,
+    kutato:Math.min(szAlap,2*mb),doktori:Math.min(szAlap,2*mb),mmk:Math.min(szAlap,2*mb),kozf:Math.min(szAlap*0.5,P.kozfGar*0.5),
+    kf:Math.min(szAlap,500000)*P.kfRate,koztv:Math.min(szAlap,4*mb)}[S.szkedv]||0;
+  a.szochoKedv=Math.round(sk*SZOCHO);a.szocho=Math.max(0,Math.round(szAlap*SZOCHO)-a.szochoKedv);
+  a.netto=B-a.szja-a.tb-tag;applyLev(a,B);a.koltseg=B-a.tpFt+a.szocho+a.kmMentes}
+function applyLev(a,B){const lc=levCfg();const out=[];let letilt=0;const N=a.netto;
+  for(const L of LEVS){if(L.id==="szak")continue;const c=lc[L.id];if(!c||!c.on)continue;
+    let amt=c.u==="%"?(L.b==="netto"?N:B)*(+c.v||0)/100:(+c.v||0);
+    if(L.id==="vegr")amt=Math.min(amt,N*0.33);
+    if(L.b==="netto"){amt=Math.min(amt,Math.max(0,N*0.5-letilt));letilt+=amt}
+    amt=Math.round(Math.max(0,amt));if(amt)out.push({n:L.n,amt})}
+  a.egyebLev=out;a.egyebOssz=out.reduce((s,x)=>s+x.amt,0);
+  a.kifiz=Math.max(0,a.netto-a.egyebOssz)+a.kmMentes}
+
+function csaladiPotlek(y){const g=+S.gyerek||0;const t=YP[y].cspot[S.cspotTip]||YP[y].cspot.csalad;
+  if(g<=0)return 0;return g*(g===1?t[0]:g===2?t[1]:t[2])}
+
+/* ---------- Mentés: claude db, különben böngésző ---------- */
+let db=null,uid=null,saveT=null,loaded=false;
+function setStatus(t){$("status").textContent=t}
+async function persist(){if(!loaded)return;clearTimeout(saveT);saveT=setTimeout(async()=>{
+  const snap={s:S,days:DAYS};
+  if(db&&uid){try{await db.doc(`data/users/${uid}/settings`).set({s:JSON.stringify(S)});
+      for(const y of [2026,2027])await db.doc(`data/users/${uid}/y${y}`).set({d:JSON.stringify(DAYS[y]||{})});setStatus("Mentve")}
+    catch(e){setStatus("Mentés sikertelen");try{localStorage.setItem("berkalk",JSON.stringify(snap))}catch(_){}}}
+  else{try{localStorage.setItem("berkalk",JSON.stringify(snap));setStatus("Mentve ezen az eszközön")}catch(_){setStatus("Nem menthető")}}
+},700)}
+function mergeS(o){const old=o&&Object.keys(o).length>0;const s=Object.assign(JSON.parse(JSON.stringify(DEFAULTS)),o||{});
+  if(old&&!o.mszHossz)s.mszHossz="8";if(old&&o.wizDone==null)s.wizDone=true;if(!s.cmp)s.cmp={};
+  if(old&&!o.oldLen)s.oldLen=o.mszHossz||"8";
+  s.shiftsByLen=Object.assign({},JSON.parse(JSON.stringify(DEFAULTS.shiftsByLen)),(o&&o.shiftsByLen)||{});
+  s.brkByLen=Object.assign({},DEFAULTS.brkByLen,(o&&o.brkByLen)||{});
+  if(old&&o.shifts&&!o.shiftsByLen)s.shiftsByLen[s.oldLen]=JSON.parse(JSON.stringify(o.shifts));
+  if(old&&o.brk!=null&&!o.brkByLen)s.brkByLen[s.oldLen]=+o.brk;
+  for(const L of ["8","10","12"]){if(!s.shiftsByLen[L])s.shiftsByLen[L]={};for(const c of WORK)if(!s.shiftsByLen[L][c])s.shiftsByLen[L][c]=JSON.parse(JSON.stringify(LEN_PRESET[L].shifts[c]))}
+  delete s.shifts;delete s.brk;return s}
+async function load(){let got=false;
+  try{if(window.claude&&window.claude.use){const timer=new Promise(r=>setTimeout(()=>r(null),10000));
+      db=await Promise.race([window.claude.use("db"),timer]);const u=db?await window.claude.use("user"):null;uid=u?await u.id():null;
+      if(db&&uid){const st=await db.doc(`data/users/${uid}/settings`).get();
+        if(st.exists){S=mergeS(JSON.parse(st.data().s||"{}"));got=true}
+        for(const y of [2026,2027]){const ds=await db.doc(`data/users/${uid}/y${y}`).get();if(ds.exists)DAYS[y]=JSON.parse(ds.data().d||"{}")}
+        setStatus("Fiókodban mentve")}}}catch(e){db=null}
+  if(!got&&!(db&&uid)){try{const raw=localStorage.getItem("berkalk");if(raw){const o=JSON.parse(raw);S=mergeS(o.s);DAYS=Object.assign({2026:{},2027:{}},o.days);got=true}}catch(_){}
+    setStatus(got?"Ezen az eszközön mentve":"Helyi mentés")}
+  if(!got&&PERSONAL){fillMonth(2026,10,true);fillMonth(2026,11,true)}
+  loaded=true;bindAll();renderAll();
+  if(!got&&!S.wizDone)openWiz()}
+
+/* ---------- Űrlap kötés ---------- */
+const FIELDS=["szulev","mvKezd","szerz","hetiOra","keretOn","keretHossz","keretEgys","jogv","bertip","ber","pDelOn","pDel","pEjOn","pEj","vasOn","bonuszOn","bonuszPct","szkedv","cafe","kmft","kmnap","kedv","gyerek","ckArany","cspotTip","hazas","szemelyi","bizt2","msz","refDate","refShift","rotOrder","gy16","gyFogy","veszely","vasEj","dec24","brkDed"];
+function fillSelects(){
+  $("msz").innerHTML=mszOptions().map(([v,t])=>`<option value="${v}">${t}</option>`).join("");$("msz").value=S.msz;
+  $("refShift").innerHTML=codesFor().map(c=>`<option>${c}</option>`).join("");if(!codesFor().includes(S.refShift))S.refShift="De";$("refShift").value=S.refShift}
+function bindAll(){
+  fillSelects();
+  for(const f of FIELDS){const el=$(f);if(!el)continue;
+    if(el.type==="checkbox")el.checked=!!S[f];else el.value=S[f];
+    el.oninput=el.onchange=()=>{S[f]=el.type==="checkbox"?el.checked:(el.type==="number"?(el.value===""?0:+el.value):el.value);renderAll();persist()}}
+  for(const id of ["cafeSzamla","cafeSzep"]){const r=$(id);r.checked=(S.cafeMod||"szamla")===r.value;r.onchange=()=>{if(r.checked){S.cafeMod=r.value;renderAll();persist()}}}
+  for(const v of ["8","10","12"]){const r=$("len"+v);r.checked=S.mszHossz===v;r.onchange=()=>{if(r.checked)setLen(v)}}
+  const lc=levCfg();const ll=$("levList");ll.innerHTML="";
+  for(const L of LEVS){const c=lc[L.id];const box=document.createElement("div");box.className="potbox";
+    box.innerHTML=`<label class="chk"><input type="checkbox" id="lev-${L.id}-on"> ${L.n}</label><div class="pctin"><input type="number" min="0" step="${L.id==="szak"?"0.1":"1"}" id="lev-${L.id}-v" aria-label="${L.n} mértéke"><select id="lev-${L.id}-u" aria-label="${L.n} egysége"><option>%</option><option>Ft</option></select></div>`;
+    ll.append(box);const on=$(`lev-${L.id}-on`),v=$(`lev-${L.id}-v`),u=$(`lev-${L.id}-u`);
+    on.checked=!!c.on;v.value=c.v;u.value=c.u;v.disabled=u.disabled=!c.on;
+    on.onchange=()=>{c.on=on.checked;v.disabled=u.disabled=!c.on;renderAll();persist()};
+    v.oninput=()=>{c.v=v.value===""?0:+v.value;renderAll();persist()};u.onchange=()=>{c.u=u.value;renderAll();persist()}}
+  bindShifts()}
+function bindShifts(){const si=$("shiftInputs");si.innerHTML="";const LS=S.shiftsByLen[S.mszHossz];
+  if(!S.veco)S.veco={De:false,Du:false,"Éj":false};if(!S.vecoMin)S.vecoMin={De:25,Du:25,"Éj":25};
+  for(const c of codesFor()){const sh=LS[c];
+    const r1=document.createElement("div");r1.className="shiftrow";
+    r1.innerHTML=`<span class="code c-${c}">${c}</span><input type="time" id="sh-${c}-s" aria-label="${c} kezdés" value="${sh.s}"><input type="time" id="sh-${c}-e" aria-label="${c} vége" value="${sh.e}">`;
+    const r2=document.createElement("div");r2.className="veco";
+    r2.innerHTML=`<label class="chk"><input type="checkbox" id="veco-${c}"> Termelési tájékoztató</label><input type="number" min="0" max="240" step="1" id="vecoMin-${c}" aria-label="${c} termelési tájékoztató perc"> perc`;
+    si.append(r1,r2);
+    const vm=$(`vecoMin-${c}`);vm.value=S.vecoMin[c]??25;vm.oninput=()=>{S.vecoMin[c]=vm.value===""?0:+vm.value;renderAll();persist()};
+    const vc=$(`veco-${c}`);vc.checked=!!S.veco[c];vc.onchange=()=>{S.veco[c]=vc.checked;renderAll();persist()};
+    for(const p of ["s","e"]){const el=$(`sh-${c}-${p}`);el.onchange=()=>{LS[c][p]=el.value;renderAll();persist()}}}
+  const bk=$("brk");bk.value=brkOf(S.mszHossz);bk.oninput=()=>{S.brkByLen[S.mszHossz]=bk.value===""?0:+bk.value;renderAll();persist()};$("brkDed").checked=!!S.brkDed}
+function setLen(v){S.mszHossz=v;
+  if(!codesFor().includes(S.refShift))S.refShift="De";fillSelects();bindShifts();renderAll();persist();
+  toast(`Mostantól a koppintott napok ${v} órás műszakot kapnak. A már kitöltött napok nem változnak.`)}
+
+/* ---------- Megjelenítés ---------- */
+function renderAll(){CALC=null;renderAdatok();renderCal();renderSlip();renderEv()}
+function renderAdatok(){$("egyeniWrap").hidden=S.szerz!=="egy";$("keretHossz").disabled=$("keretEgys").disabled=!S.keretOn;
+  $("rotWrap").hidden=!(S.mszHossz==="8"&&S.msz==="3");$("vasEjWrap").hidden=!(S.mszHossz==="8"&&S.msz==="3");
+  $("notice2027").hidden=view.y!==2027;
+  {const C=contract();let h=`Napi munkaidő: ${String(Math.round(C.D*10)/10).replace(".",",")} óra, heti ${C.W} óra. `;
+   if(C.kot)h+="Kötetlen munkarendben a rendszer nem számol automatikus túlórát (Mt. 96. §), csak amit a naptárban jelölsz. ";
+   else if(S.keretOn){const L=keretLen();h+=`Munkaidőkeret: ${L} hónap, ${S.mvKezd?"a munkaviszony kezdetétől ("+S.mvKezd.replace(/-/g,". ")+".)":"2026. január 1-jétől"}. A ki nem töltött korábbi hónapokat a műszakrend alapján szimulálja. A keret alatt a beosztás szerinti hétvégi munka rendes munkaidő; a keretet meghaladó órákat a keret utolsó hónapjában fizeti ki túlóraként (Mt. 107. §). `+(L>4?"4 hónapnál hosszabb keret csak kollektív szerződéssel lehet (Mt. 94. §). ":"")}
+   else h+=`Munkaidőkeret nélkül a hét munkaidején (munkanapok × napi munkaidő) felül ledolgozott idő túlóra (+50%, Mt. 107. és 143. §), hétvégén is. A naptárban egyenként RMP-re (+100%) állítható. `;
+   $("szerzHint").textContent=h}$("pDel").disabled=S.pDelOn===false;$("pEj").disabled=S.pEjOn===false;
+  $("berLabel").textContent={havi:"Havi bruttó alapbér (Ft)",ora:"Bruttó órabér (Ft/óra)",perc:"Bruttó percbér (Ft/perc)"}[S.bertip];
+  const jh={mv:"18,5% TB járulék, 15% SZJA; a munkáltató 13% szochót fizet.",koz:"Ugyanazok a terhek, mint munkaviszonyban.",
+    nyugd:"Nyugdíjas munkavállaló: TB járulék és szocho nincs, csak SZJA.",diak:"Iskolaszövetkezeti diák: TB járulék és szocho nincs; 25 év alatt az SZJA-mentesség is jár.",
+    megb:"Megbízás: 10% költséghányaddal számolva; TB járulék és SZJA a jövedelem után.",efo:"Egyszerűsített foglalkoztatás: a munkavállalót nem terheli levonás, a munkáltató napi fix közterhet fizet."}[S.jogv];
+  $("cafeHint").textContent=S.cafeMod==="szep"?"SZÉP kártyára: nem része a bruttónak, nem vonnak le belőle semmit; a közterhet a munkáltató fizeti. Természetbeni juttatásként külön jelenik meg.":"Számlás kiutalás: a bruttó bér része, SZJA és TB terheli.";
+  $("jogvHint").textContent=jh+(view.y===2027?" 2027: adójóváírás csak bérre jár (munkaviszony, közszféra, nyugdíjas, diák), megbízásra és alkalmi munkára nem.":"");
+  const P0=YP[view.y];const skh={none:"",mpl12:"A munkáltató a minimálbérig nem fizet szochót (havi max. "+ft(P0.minber*SZOCHO)+").",mpl3:"A minimálbérig a szocho fele elengedve.",
+    szakn:"A minimálbér feléig nem fizet szochót a munkáltató (max. "+ft(P0.minber*0.5*SZOCHO)+").",no13:"A minimálbérig nincs szocho.",no45:"A minimálbérig a szocho fele elengedve.",
+    kutato:"A minimálbér kétszereséig nincs szocho.",doktori:"A minimálbér kétszereséig nincs szocho.",mmk:"A minimálbér kétszereséig nincs szocho.",
+    kozf:"A bér fele után, legfeljebb a garantált közfoglalkoztatási bér feléig nincs szocho.",
+    kf:view.y===2027?"2027: a bér után 500 000 Ft-ig a teljes szocho elengedve (T/931 javaslat).":"A bér után 500 000 Ft-ig a szocho fele elengedve.",
+    koztv:"A minimálbér négyszereséig nincs szocho."}[S.szkedv]||"";
+  $("szkedvHint").textContent=skh?skh+" Ez a munkáltatói költséget csökkenti, a nettó béredet nem.":"";
+  const P=YP[view.y];const k=S.kedv;let h="";
+  if(k==="fiatal")h=`25 év alatt havonta ${ft(P.cap25)} jövedelemig nincs SZJA.`;
+  else if(k.startsWith("anya"))h=P.anyaCap===Infinity?"Az anyák kedvezményével a bérjövedelem SZJA-mentes.":`Az anyák kedvezménye havi ${ft(P.anyaCap)}-ig mentes (2027).`;
+  const g=+S.gyerek||0;if(g>0){const per=g===1?P.ck[0]:g===2?P.ck[1]:P.ck[2];h+=` Családi kedvezmény: ${g} gyermek × ${ft(per)} = ${ft(per*g)} havonta, először az SZJA-ból, a maradék a TB járulékból.`}
+  $("kedvHint").textContent=h.trim();
+  const sz=szabadsag(view.y);
+  $("szabSum").innerHTML=[["Alap",sz.alap],["Életkor",sz.elet],["Gyermek",sz.gy],["Veszélyes munka",sz.vesz],["Fiatal (18 alatt)",sz.fiatal],
+    ...(sz.arany<1?[["Teljes évre",sz.teljes],[sz.belepve?"Arányosan ("+Math.round(sz.arany*100)+"%)":"Még nincs munkaviszony",sz.ossz]]:[["Összesen "+view.y,sz.ossz]])]
+    .map(([l,v])=>`<div><span>${l}</span><b>${v} nap</b></div>`).join("");
+  $("lenHint").textContent="A kiválasztott hosszúság csak azokra a napokra vonatkozik, amelyekre ezután koppintasz, vagy amelyeket a „Hónap kitöltése” gombbal töltesz ki; a már kitöltött napok megtartják a saját műszakjukat. Egy korábbi napra koppintva az a nap átvált az új hosszúságra. A 10 és 12 órás napokon a műszak jele mellett kis szám mutatja a hosszt (például Éj¹²). "+(S.mszHossz==="8"?"8 órás rendben három műszak van: délelőtt (De), délután (Du), éjszaka (Éj).":`${S.mszHossz} órás rendben két műszak van: nappalos (De) és éjszakás (Éj).`)+
+    " Termelési tájékoztató: kipipálva a hét első napján (hétfő) a műszak a beírt perccel hosszabb – a nappalos később ér véget, a többi korábban kezdődik. A 6 óránál hosszabb műszakban legalább 20, a 9 óránál hosszabban legalább 45 perc szünet jár (Mt. 103. §). Ha nálad fizetett a szünet, vedd ki a pipát."}
+
+const CODE_NAMES={De:"délelőtt / nappal",Du:"délután","Éj":"éjszaka",Sz:"szabadság",TP:"táppénz / betegszabadság",Okt:"oktatás",Kik:"kiküldetés","Áll":"állásidő",FN:"fizetés nélküli szabadság",Ig:"igazolatlan távollét"};
+function renderCal(){const y=view.y,m=view.m;$("calY").value=y;$("calM").value=m;calcYear(y);
+  const cyc=["",...codesFor(),"Sz","TP"];const vm=isVirtMonth(y,m);
+  $("virtNote").hidden=!vm;
+  const cal=$("cal");cal.innerHTML=DOWS.map(d=>`<div class="dh">${d}</div>`).join("");
+  const first=dowOf(y,m,1);for(let i=0;i<first;i++){const e=document.createElement("div");e.className="day empty";cal.append(e)}
+  for(let d=1;d<=dim(y,m);d++){const ent=getEnt(y,m,d);const dw=dowOf(y,m,d);const b=document.createElement("button");
+    const dr=ent?dayCalc(y,m,d,ent):{ot:""};const sw=isSwapWork(y,m,d),sr=isSwapRest(y,m,d);
+    b.className="day"+(vm&&ent?" virt":"")+(!employed(y,m,d)?" pre":"")+(dw>=5&&!sw?" we":"")+(isHol(y,m,d)?" hol":"")+(sw?" swapw":"")+(sr?" swapr":"")+(dr.ot==="T"||dr.ot==="R"?" t":"");
+    let inner=`<span class="dn">${d}</span>`;
+    if(ent&&ent.c){const L=WORK.includes(ent.c)?entLen(ent):"8";inner+=`<span class="code c-${ent.c}">${ent.c}${L!=="8"?`<sup class="lenb">${L}</sup>`:""}</span>`;
+      if(WORK.includes(ent.c)){const t=shiftTimes(ent.c,dw,L);if(t){const f=x=>pad(Math.floor(((x%1440)+1440)%1440/60))+":"+pad(((x%60)+60)%60);inner+=`<span class="tm">${f(t.s)}–${f(t.e)}</span>`}}}
+    else if(isHol(y,m,d))inner+=`<span class="tm">ünnep</span>`;
+    else if(sw)inner+=`<span class="tm">munkanap</span>`;else if(sr)inner+=`<span class="tm">pihenőnap</span>`;
+    if(dr.ot==="T")inner+=`<span class="ot">T</span>`;else if(dr.ot==="R")inner+=`<span class="ot">RMP</span>`;else if(dr.ot==="T*")inner+=`<span class="ot auto">T</span>`;else if(dr.ot==="R*")inner+=`<span class="ot auto">RMP</span>`;else if(ent&&ent.t==="N")inner+=`<span class="ot auto">N</span>`;
+    b.innerHTML=inner;b.setAttribute("aria-label",`${y}. ${MONTHS[m]} ${d}. ${ent&&ent.c?CODE_NAMES[ent.c]||ent.c:"üres"}`);
+    b.onclick=()=>{if(isVirtMonth(y,m))materialize(y,m);if(!employed(y,m,d)){toast("Ez a nap a munkaviszony kezdete előtt van.");return}const ds=DAYS[y]||(DAYS[y]={});const k=key(m,d);const cur=ds[k]||{c:""};const mode=$("tapMode").value;
+      if(mode==="ot"){if(!WORK.includes(cur.c)){toast("Túlórát műszakos napra jelölhetsz.");return}const OTC=[0,"T","R","N"];const cv=cur.t===1?(dw>=5?"R":"T"):(cur.t||0);cur.t=OTC[(OTC.indexOf(cv)+1)%OTC.length];if(!cur.t)delete cur.t;ds[k]=cur}
+      else if(mode==="del"){delete ds[k]}
+      else if(mode==="rmp"){const cs=codesFor();if(WORK.includes(cur.c)&&cur.t==="R"){const i=cs.indexOf(cur.c);if(i>=0&&i<cs.length-1)ds[k]={c:cs[i+1],L:S.mszHossz,t:"R"};else delete ds[k]}
+        else if(WORK.includes(cur.c)){ds[k]=Object.assign({},cur,{t:"R"})}else ds[k]={c:cs[0],L:S.mszHossz,t:"R"}}
+      else if(mode!=="cycle"){if(cur.c===mode)delete ds[k];else ds[k]={c:mode}}
+      else if(WORK.includes(cur.c)&&entLen(cur)!==S.mszHossz){const c2=codesFor().includes(cur.c)?cur.c:codesFor()[0];ds[k]={c:c2,L:S.mszHossz};if(cur.t)ds[k].t=cur.t}
+      else{const i=cyc.indexOf(cur.c||"");const nx=cyc[(i+1)%cyc.length];if(!nx)delete ds[k];else{ds[k]={c:nx};if(WORK.includes(nx)){ds[k].L=S.mszHossz;if(cur.t)ds[k].t=cur.t}}}
+      renderAll();persist()};
+    cal.append(b)}
+  $("legend").innerHTML=`Koppintásra: ${cyc.slice(1).map(c=>`<span class="code c-${c}">${c}</span>`).join("")} → üres. A „Koppintás” menüben választható még: <span class="code c-Okt">Okt</span><span class="code c-Kik">Kik</span><span class="code c-Áll">Áll</span><span class="code c-FN">FN</span><span class="code c-Ig">Ig</span> az RMP műszak (koppintásra: De → Du → Éj RMP-vel → üres; meglévő műszakot RMP-re állít) és a túlóra (T → RMP → N). Az RMP és a kézzel jelölt T a jelölt hónapban fizetődik ki, munkaidőkeretben is; nem számít bele a keret egyenlegébe. Halvány T: a heti munkaidő feletti rész, automatikus túlóra. Kék alsó csík: áthelyezett szombati munkanap; sárga: áthelyezett pihenőnap. Táppénznél a hétvégét is jelöld.`;
+  const a=calcYear(y)[m];
+  $("calSum").innerHTML=[["Ledolgozott nap",a.days],["Munkaidő",hr(a.work)+" ó"],["Délutános",hr(a.del)+" ó"],["Éjszakás",hr(a.ej)+" ó"],["Túlóra / RMP",hr(a.tul+a.rmp)+" ó"],["Bruttó",ft(a.brutto)],["Kifizetés",ft(a.kifiz)]]
+    .map(([l,v])=>`<div><span>${l}</span><b>${v}</b></div>`).join("");
+}
+
+function slipHTML(a){const y=a.y,m=a.m;const sz=szabadsag(y);const dm=napiMin();
+  const rows=a.lines.filter(x=>x.amt!==0||x.lost||["alap"].includes(x.id)).map(x=>`<tr><td>${x.label}</td><td class="r">${x.min!=null?hr(x.min):""}</td><td class="r">${ft(x.amt)}</td></tr>`).join("");
+  const lev=[["Társ. bizt. járulék (18,5%)",a.tb],["Személyi jövedelemadó",a.szja],["Szakszervezeti tagdíj",a.tagdij],...(a.egyebLev||[]).map(x=>[x.n,x.amt])].filter(x=>x[1]).map(([l,v])=>`<tr><td>${l}</td><td class="r">${ft(v)}</td></tr>`).join("")||`<tr><td>Nincs levonás</td><td class="r">0 Ft</td></tr>`;
+  const levOssz=a.tb+a.szja+a.tagdij+(a.egyebOssz||0);
+  const adoRows=[["Bruttó bér",a.brutto],["Szakszervezeti tagdíj (adóalapot csökkenti)",a.tagdij],["Adóalap",a.szjaAlap],["Mentes rész ("+({fiatal:"25 év alatti",anya30:"30 év alatti anya",anya2:"kétgyermekes anya",anya3:"háromgyermekes anya",anya4:"négy+ gyermekes anya"}[S.kedv]||"–")+")",a.exempt],
+    ["Számított SZJA (15%)",a.szjaSz],["Adójóváírás",a.jov],["Személyi kedvezmény",a.szem],["Első házasok kedvezménye",a.hazas],["Családi kedvezmény keret",a.ckKeret],["Családi kedvezmény SZJA-ból",a.ckSzja],
+    ["Fizetendő SZJA",a.szja],["TB járulék alapja",a.tbAlap],["Számított TB járulék",a.tbSz],["Családi járulékkedvezmény",a.ckJar],["Fizetendő TB járulék",a.tb]]
+    .filter(([l,v],i)=>v||[0,2,10,14].includes(i)).map(([l,v])=>`<tr><td>${l}</td><td class="r">${ft(v)}</td></tr>`).join("");
+  const idr=(l,n,min)=>`<tr><td>${l}</td><td class="r">${n}</td><td class="r">${min!=null?hr(min):""}</td></tr>`;
+  const extra=[["Oktatás",a.oktNap],["Kiküldetés",a.kikNap],["Állásidő",a.allNap],["Fizetés nélküli szabadság",a.fnNap],["Igazolatlan távollét",a.igNap]].filter(x=>x[1]).map(([l,n])=>idr(l,n,n*dm)).join("");
+  return `<div class="ph"><div><b>Munkabérjegyzék</b><br>Jogviszony: ${$("jogv").selectedOptions[0].text}</div>
+    <div style="text-align:right"><b>${y}. ${MONTHS[m].toLowerCase()}</b><br>Havi munkaidő: ${hr(workHours(y,m)*60)} óra (${workDays(y,m)} munkanap)</div></div>
+  <div class="cols">
+    <div><table><tr><th colspan="3">Id. adatok</th></tr><tr><th>Megnevezés</th><th>Nap</th><th>Óra</th></tr>
+      ${idr("Ledolgozott munkaidő",a.days,a.work)}${idr("Fizetett szabadság",a.szNap,a.szMin)}${idr("Fizetett ünnep",a.unfizNap,a.unfizMin)}${extra}
+      ${idr("Betegszabadság",a.bNap,a.bNap*dm)}${idr("Táppénz (naptári nap)",a.tpNap,null)}
+      <tr><td>Rendkívüli munka</td><td class="r"></td><td class="r">${hr(a.tul+a.rmp)}</td></tr>${a.rmpNap?`<tr><td>ebből RMP műszak</td><td class="r">${a.rmpNap}</td><td class="r">${hr(a.rmp)}</td></tr>`:""}
+      <tr><td>Pótlékátlag (távolléti díj)</td><td class="r" colspan="2">${(a.pa*60).toLocaleString("hu-HU",{maximumFractionDigits:2})} Ft/óra</td></tr>
+      ${a.keret?`<tr><td>Munkaidőkeret egyenleg</td><td class="r" colspan="2">${a.keret.bal>=0?"+":""}${hr(a.keret.bal)} ó</td></tr><tr><td>Keret időszaka</td><td class="r" colspan="2">${a.keret.startY}. ${MONTHS[a.keret.startM].slice(0,3).toLowerCase()}. – ${a.keret.endY}. ${MONTHS[a.keret.endM].slice(0,3).toLowerCase()}.</td></tr>`:""}
+      <tr><td>Megtett km</td><td class="r" colspan="2">${a.km.toLocaleString("hu-HU")} km</td></tr></table></div>
+    <div><table><tr><th>Kifizetések, juttatások</th><th>Óra</th><th>Összeg</th></tr>${rows}
+      <tr class="tot"><td>Bruttó összesen</td><td></td><td class="r">${ft(a.brutto)}</td></tr>
+      <tr><td>Munkába járás adómentes</td><td></td><td class="r">${ft(a.kmMentes)}</td></tr>
+      <tr class="tot"><td>Pénzbeni járandóság</td><td></td><td class="r">${ft(a.brutto+a.kmMentes)}</td></tr>
+      <tr><th colspan="3">Természetbeni juttatás</th></tr>
+      <tr><td>SZÉP kártya jóváírás (béren kívüli)</td><td></td><td class="r">${ft(a.szep)}</td></tr></table></div>
+    <div><table><tr><th>Levonások</th><th>Összeg</th></tr>${lev}<tr class="tot"><td>Összes levonás</td><td class="r">${ft(levOssz)}</td></tr></table>
+      <table class="sec"><tr><th>Átutalások</th><th></th></tr><tr class="net"><td>Nettó kifizetés (bankszámla)</td><td class="r">${ft(a.kifiz)}</td></tr>${a.szep?`<tr><td>SZÉP kártyára</td><td class="r">${ft(a.szep)}</td></tr><tr class="tot"><td>Összesen</td><td class="r">${ft(a.kifiz+a.szep)}</td></tr>`:""}</table>
+      <table class="sec"><tr><th>Tájékoztató</th><th></th></tr><tr><td>Családi pótlék</td><td class="r">${ft(csaladiPotlek(y))}</td></tr>
+      <tr><td>Havi összes bevétel (kifizetés + SZÉP + családi pótlék)</td><td class="r">${ft(a.kifiz+a.szep+csaladiPotlek(y))}</td></tr></table></div>
+  </div>
+  <div class="cols sec" style="grid-template-columns:1.2fr 1fr">
+    <div><table><tr><th colspan="2">Adószámításnál figyelembe vett adatok</th></tr>${adoRows}</table></div>
+    <div><table><tr><th colspan="2">Szabadságok (nap)</th></tr>
+      <tr><td>Alapszabadság</td><td class="r">${sz.alap}</td></tr><tr><td>Életkor szerinti</td><td class="r">${sz.elet}</td></tr>
+      <tr><td>Gyermekek utáni</td><td class="r">${sz.gy}</td></tr>${sz.vesz?`<tr><td>Veszélyes munka</td><td class="r">${sz.vesz}</td></tr>`:""}${sz.fiatal?`<tr><td>Fiatal munkavállaló</td><td class="r">${sz.fiatal}</td></tr>`:""}
+      <tr class="tot"><td>Éves keret</td><td class="r">${sz.ossz}</td></tr><tr><td>Kivett e hónapban</td><td class="r">${a.szNap}</td></tr>
+      <tr><td>Kivett az évben eddig</td><td class="r">${a.szabEddig}</td></tr><tr class="tot"><td>Maradék</td><td class="r">${sz.ossz-a.szabEddig}</td></tr>
+      <tr><td>Betegszabadság eddig (max. ${betegKeret(y)})</td><td class="r">${a.betegEddig}</td></tr></table></div>
+  </div>
+  ${a.virt?`<div class="small"><b>Szimulált hónap:</b> a naptárban nincs kitöltve, ezért a műszakrend alapján számolva.</div>`:""}${a.keret&&a.keret.partial?`<div class="small">A munkaidőkeret 2026 előtt kezdődött; a 2026 előtti hónapokat kiegyenlítettnek veszi.</div>`:""}
+  <div class="small">${YP[y].note} Tájékoztató számítás, nem hivatalos bérjegyzék. A távolléti díj a Mt. 148. § szerint: alapbér + az előző hat hónap pótlékátlaga (a legalább négy hónapban kifizetett pótlékokból).</div>`}
+function renderSlip(){$("kY").value=view.y;$("kM").value=view.m;const a=calcYear(view.y)[view.m];$("slip").innerHTML=slipHTML(a);renderCmp(a)}
+function renderCmp(a){const k=view.y+"-"+pad(view.m+1);const c=(S.cmp||{})[k]||{};$("cmpB").value=c.b||"";$("cmpN").value=c.n||"";
+  const out=[];const tol=1000;
+  if(c.b){const d=c.b-a.brutto;out.push(Math.abs(d)<=tol?`<div><span class="ok">Bruttó egyezik</span> (eltérés ${ft(d)}).</div>`:`<div><span class="bad">Bruttó eltérés: ${d>0?"+":""}${ft(d)}</span> – a bérjegyzéken ${d>0?"több":"kevesebb"}. Nézd át a naptárat (szabadság, TP, oktatás, ünnep), a műszakidőket és a szünetet, valamint a pótlékok óráit. Egyszeri tételek (jutalom, korrekció) nem szerepelnek a kalkulátorban.</div>`)}
+  if(c.n){const d=c.n-(a.kifiz);const bOk=!c.b||Math.abs(c.b-a.brutto)<=tol;
+    out.push(Math.abs(d)<=tol?`<div><span class="ok">Átutalás egyezik</span> (eltérés ${ft(d)}).</div>`:`<div><span class="bad">Átutalás eltérés: ${d>0?"+":""}${ft(d)}</span> – ${bOk?"a bruttó rendben, ezért a levonásokban keresd: családi kedvezmény megosztása, tagdíj, letiltások, adójóváírás, munkába járás.":"először a bruttó eltérését érdemes tisztázni."}</div>`)}
+  $("cmpRes").innerHTML=out.join("")||`<div class="hint">A kalkulátor szerint: bruttó ${ft(a.brutto)}, átutalás ${ft(a.kifiz)}.</div>`}
+function renderEv(){const y=+$("eY").value||view.y;const ms=calcYear(y);const used=ms.filter(a=>a.hasData);const sum=k=>used.reduce((s,a)=>s+(a[k]||0),0);
+  const sz=szabadsag(y);const last=ms[11];
+  $("evSum").innerHTML=[["Bruttó",ft(sum("brutto"))],["Kifizetés",ft(sum("kifiz"))],["SZJA + TB",ft(sum("szja")+sum("tb"))],["SZÉP kártya",ft(sum("szep"))],
+    ["Túlóra / RMP",hr(sum("tul")+sum("rmp"))+" ó"],["Szabadság",`${last.szabEddig} / ${sz.ossz} nap`],["TP nap",sum("tpDb")],["Családi pótlék",ft(used.length?csaladiPotlek(y)*12:0)]]
+    .map(([l,v])=>`<div><span>${l}</span><b>${v}</b></div>`).join("");
+  const W=640,H=230,pl=8,pr=8,pt=18,pb=26,bw=(W-pl-pr)/12;const max=Math.max(1,...ms.map(a=>a.hasData?a.kifiz:0));
+  const nice=Math.ceil(max/100000)*100000;let g="";
+  for(let i=0;i<=4;i++){const yv=pt+(H-pt-pb)*(1-i/4);g+=`<line x1="${pl}" x2="${W-pr}" y1="${yv}" y2="${yv}" stroke="var(--line)" stroke-width="1"/>`;if(i)g+=`<text x="${pl+2}" y="${yv-3}">${Math.round(nice*i/4/1000)}e</text>`}
+  ms.forEach((a,i)=>{const v=a.hasData?a.kifiz:0;const h=(H-pt-pb)*v/nice;const x=pl+i*bw+bw*0.18,w=bw*0.64,yv=H-pb-h;
+    const cur=(y===view.y&&i===view.m);g+=`<rect x="${x}" y="${yv}" width="${w}" height="${Math.max(h,0)}" rx="3" fill="${cur?"var(--hi)":"var(--accent)"}" opacity="${a.hasData?(a.virt?.5:1):.25}"/>`;
+    if(a.hasData)g+=`<text class="val" x="${x+w/2}" y="${yv-4}" text-anchor="middle">${Math.round(v/1000)}e</text>`;
+    g+=`<text x="${x+w/2}" y="${H-8}" text-anchor="middle">${MONTHS[i].slice(0,3)}</text>`});
+  $("evChart").innerHTML=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Havi kifizetések ${y}">${g}</svg>`}
+
+/* ---------- Műveletek ---------- */
+function fillMonth(y,m,silent){const ds=DAYS[y]||(DAYS[y]={});let n=0;
+  for(let d=1;d<=dim(y,m);d++){const k=key(m,d);if(ds[k])continue;const c=autoCode(y,m,d);if(c){ds[k]={c,L:S.mszHossz};n++}}
+  if(!silent)toast(n?`${n} nap kitöltve. A már beírt napok nem változtak.`:"Nem volt üres munkanap.")}
+const TABS=["adatok","naptar","kimutatas","ev","tamogatas"];
+const tabs=[...document.querySelectorAll("nav.tabs button")];
+tabs.forEach(b=>b.onclick=()=>{tabs.forEach(x=>x.setAttribute("aria-selected",x===b?"true":"false"));
+  for(const t of TABS)$("tab-"+t).hidden=t!==b.dataset.tab;try{localStorage.setItem("berkalk-tab",b.dataset.tab)}catch(_){}});
+try{const t=localStorage.getItem("berkalk-tab");if(t){const b=tabs.find(x=>x.dataset.tab===t);b&&b.click()}}catch(_){}
+for(const id of ["calM","kM"])$(id).innerHTML=MONTHS.map((n,i)=>`<option value="${i}">${n}</option>`).join("");
+$("calY").onchange=e=>{view.y=+e.target.value;$("eY").value=view.y;renderAll()};$("calM").onchange=e=>{view.m=+e.target.value;renderAll()};
+$("kY").onchange=e=>{view.y=+e.target.value;$("eY").value=view.y;renderAll()};$("kM").onchange=e=>{view.m=+e.target.value;renderAll()};
+$("eY").onchange=()=>renderEv();
+$("prevM").onclick=()=>{if(view.m>0)view.m--;else if(view.y>2026){view.y--;view.m=11}renderAll()};
+$("nextM").onclick=()=>{if(view.m<11)view.m++;else if(view.y<2027){view.y++;view.m=0}renderAll()};
+$("fillM").onclick=()=>{fillMonth(view.y,view.m);renderAll();persist()};
+let clearArm=false;$("clearM").onclick=e=>{if(!clearArm){clearArm=true;e.target.textContent="Biztosan törlöd? Koppints újra";setTimeout(()=>{clearArm=false;e.target.textContent="Hónap törlése"},3000);return}
+  clearArm=false;e.target.textContent="Hónap törlése";const ds=DAYS[view.y]||{};for(const k of Object.keys(ds))if(k.startsWith(pad(view.m+1)+"-"))delete ds[k];renderAll();persist();toast("A hónap kiürítve.")};
+for(const id of ["cmpB","cmpN"])$(id).oninput=()=>{const k=view.y+"-"+pad(view.m+1);S.cmp=S.cmp||{};S.cmp[k]={b:+$("cmpB").value||0,n:+$("cmpN").value||0};renderCmp(calcYear(view.y)[view.m]);persist()};
+
+/* ---------- Fájl mentés / betöltés, megosztás ---------- */
+async function saveFile(name,data){const dl=window.claude&&window.claude.use?await window.claude.use("downloads"):null;
+  if(dl){await dl.save({filename:name,data});return}
+  const blob=data instanceof Blob?data:new Blob([data],{type:"application/octet-stream"});const u=URL.createObjectURL(blob);const a=document.createElement("a");a.href=u;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)}
+$("expBtn").onclick=async()=>{try{const d=new Date();await saveFile(`berkalkulator_mentes_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.json`,JSON.stringify({app:"berkalkulator",v:2,s:S,days:DAYS},null,1));toast("Mentés elkészült.")}
+  catch(e){toast(e&&e.code==="declined"?"A mentést elutasítottad.":"A mentés nem sikerült.")}};
+$("impFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!o||!o.s||!o.days)throw 0;
+    S=mergeS(o.s);DAYS=Object.assign({2026:{},2027:{}},o.days);bindAll();renderAll();persist();toast("Adatok visszatöltve.")}catch(_){toast("Ez nem a Bérkalkulátor mentése, vagy sérült a fájl.")}};r.readAsText(f);e.target.value=""};
+const SHARE_KEYS=["szerz","hetiOra","keretOn","keretHossz","keretEgys","pDelOn","pDel","pEjOn","pEj","vasOn","bonuszOn","bonuszPct","kmft","msz","mszHossz","refDate","refShift","rotOrder","vasEj","shiftsByLen","brkByLen","veco","vecoMin","brkDed","dec24"];
+$("shareBtn").onclick=()=>{const o={};for(const k of SHARE_KEYS)o[k]=S[k];o.szak=levCfg().szak;
+  const code="BK1:"+btoa(unescape(encodeURIComponent(JSON.stringify(o))));const t=$("shareOut");t.hidden=false;t.value=code;
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(code).then(()=>toast("Kód kimásolva. Küldd el a munkatársadnak."),()=>{t.select();toast("Jelöld ki és másold ki a kódot.")})}else{t.select();toast("Jelöld ki és másold ki a kódot.")}};
+$("shareApply").onclick=()=>{try{const raw=$("shareIn").value.trim();if(!raw.startsWith("BK1:"))throw 0;const o=JSON.parse(decodeURIComponent(escape(atob(raw.slice(4)))));
+    for(const k of SHARE_KEYS)if(o[k]!==undefined)S[k]=o[k];if(o.szak)levCfg().szak=o.szak;S=mergeS(S);bindAll();renderAll();persist();$("shareIn").value="";toast("Beállítások betöltve.")}
+  catch(_){toast("A kód nem érvényes. Másold be újra az egészet.")}};
+
+/* ---------- Első indítás varázsló ---------- */
+function wizOpts(){const len=$("wLen").value;const sv=S.mszHossz;S.mszHossz=len;
+  $("wMsz").innerHTML=mszOptions().map(([v,t])=>`<option value="${v}">${t}</option>`).join("");$("wMsz").value=S.msz;
+  $("wRef").innerHTML=codesFor().map(c=>`<option>${c}</option>`).join("");S.mszHossz=sv}
+function openWiz(){$("wBertip").value=S.bertip==="ora"?"ora":"havi";$("wBer").value=S.ber;$("wSzulev").value=S.szulev;$("wGyerek").value=S.gyerek;$("wGy16").value=S.gy16;
+  $("wLen").value=S.mszHossz;wizOpts();$("wRef").value=S.refShift;$("wKeret").checked=!!S.keretOn;$("wiz").hidden=false;$("wBer").focus()}
+$("wLen").onchange=wizOpts;
+$("wSkip").onclick=()=>{S.wizDone=true;$("wiz").hidden=true;persist()};
+$("wOk").onclick=()=>{S.bertip=$("wBertip").value;S.ber=+$("wBer").value||0;S.szulev=+$("wSzulev").value||S.szulev;S.gyerek=+$("wGyerek").value||0;S.gy16=Math.min(+$("wGy16").value||0,S.gyerek||99);
+  S.mszHossz=$("wLen").value;
+  S.msz=$("wMsz").value;S.refShift=$("wRef").value;S.refDate=thisMonday();S.keretOn=$("wKeret").checked;S.wizDone=true;
+  const now=new Date();const y=Math.min(2027,Math.max(2026,now.getFullYear())),m=now.getFullYear()<2026?0:now.getMonth();
+  view.y=y;view.m=m;fillMonth(y,m,true);if(m<11)fillMonth(y,m+1,true);
+  $("wiz").hidden=true;bindAll();renderAll();persist();toast("Kész! A naptárban ellenőrizd a beosztást.")};
+$("wizBtn").onclick=openWiz;
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(!$("help").hidden){$("help").hidden=true;return}if(!$("wiz").hidden)$("wSkip").click()});
+$("helpBtn").onclick=()=>{$("help").hidden=false;$("helpClose").focus()};
+$("helpClose").onclick=()=>{$("help").hidden=true;$("helpBtn").focus()};
+$("help").onclick=e=>{if(e.target.id==="help")$("help").hidden=true};
+
+async function savePdf(el,name){const btns=[$("pdfBtn")];btns.forEach(b=>b.disabled=true);
+  try{const canvas=await html2canvas(el,{scale:2,backgroundColor:"#ffffff"});const {jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    const pw=200,ph=287,ratio=canvas.height/canvas.width,imgH=pw*ratio;
+    if(imgH<=ph)pdf.addImage(canvas.toDataURL("image/jpeg",.92),"JPEG",5,5,pw,imgH);
+    else{const sliceH=Math.floor(canvas.width*ph/pw);for(let y=0,p=0;y<canvas.height;y+=sliceH,p++){const c=document.createElement("canvas");c.width=canvas.width;c.height=Math.min(sliceH,canvas.height-y);
+      c.getContext("2d").drawImage(canvas,0,y,c.width,c.height,0,0,c.width,c.height);if(p)pdf.addPage();pdf.addImage(c.toDataURL("image/jpeg",.92),"JPEG",5,5,pw,pw*c.height/c.width)}}
+    await saveFile(name,pdf.output("blob"));toast("PDF elmentve.")}
+  catch(e){toast(e&&e.code==="declined"?"A mentést elutasítottad.":"A PDF mentése nem sikerült.")}
+  finally{btns.forEach(b=>b.disabled=false)}}
+$("pdfBtn").onclick=()=>savePdf($("slip"),`berjegyzek_${view.y}_${pad(view.m+1)}.pdf`);
+
+$("eY").value=view.y;
+load();
+</script>
+<script>
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))}
+</script>
+</body>
+</html>
